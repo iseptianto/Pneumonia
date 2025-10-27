@@ -3,8 +3,8 @@ import requests
 import streamlit as st
 from PIL import Image
 
-FASTAPI_URL = os.getenv("FASTAPI_URL", "http://fastapi:8000/predict")
-FASTAPI_URL_BATCH = os.getenv("FASTAPI_URL_BATCH", "http://fastapi:8000/predict-batch")
+FASTAPI_URL = os.getenv("FASTAPI_URL", "http://localhost:8000/predict")
+FASTAPI_URL_BATCH = os.getenv("FASTAPI_URL_BATCH", "http://localhost:8000/predict-batch")
 
 st.set_page_config(page_title="Pneumonia Prediction Diagnosis", page_icon="🩺", layout="wide")
 
