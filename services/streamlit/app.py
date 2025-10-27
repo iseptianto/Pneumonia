@@ -52,9 +52,14 @@ texts = {
     }
 }
 
-# Default to English
-lang = st.selectbox("🌐 Language", ["English", "Bahasa Indonesia"], index=0)
-lang_key = "en" if lang == "English" else "id"
+# Top right corner controls
+col1, col2, col3 = st.columns([4, 1, 1])
+with col2:
+    lang = st.selectbox("", ["EN", "ID"], index=0, label_visibility="collapsed")
+with col3:
+    st.markdown("[📄 Docs](https://docs.google.com/document/d/16kKwc9ChYLudeP3MeX18IPlnWezW-DXY9oWYZaVvy84/edit?usp=sharing)", unsafe_allow_html=True)
+
+lang_key = "en" if lang == "EN" else "id"
 t = texts[lang_key]
 
 # --- Header ---
@@ -105,7 +110,7 @@ if go:
             uploaded.seek(0)
             img = Image.open(uploaded).convert("RGB")
             with c1:
-                st.image(img, caption=t['preview'], use_container_width=True)
+                st.image(img, caption=t['preview'], use_column_width=True)
 
             with st.spinner("🔄 Predicting..."):
                 buf = io.BytesIO()
@@ -133,6 +138,6 @@ if go:
                     heatmap_bytes = base64.b64decode(heatmap_b64)
                     heatmap_img = Image.open(io.BytesIO(heatmap_bytes)).convert("RGB")
                     with c2:
-                        st.image(heatmap_img, caption=t['gradcam_caption'], use_container_width=True)
+                        st.image(heatmap_img, caption=t['gradcam_caption'], use_column_width=True)
         except Exception as e:
             st.error(f"❌ Error processing image: {str(e)}. Please ensure the file is a valid image.")
