@@ -9,7 +9,7 @@ from .utils import preprocess_pil, make_gradcam_heatmap, overlay_heatmap_on_imag
 from prometheus_fastapi_instrumentator import Instrumentator
 
 MODEL_PATH = os.getenv("MODEL_PATH", "/app/models/pneumonia_cnn.h5")
-GDRIVE_FILE_ID = os.getenv("GDRIVE_FILE_ID", "1gllKhGHhw0dlAqE10E5uIW1q6A3puFQd")
+GDRIVE_FILE_ID = os.getenv("GDRIVE_FILE_ID", "1gllKhGHhw0dlAqE10E5uIW1q6A3puFQd")  # Folder ID, need to get actual file ID
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
 
 def ensure_model():
@@ -18,8 +18,24 @@ def ensure_model():
         if not GDRIVE_FILE_ID:
             raise RuntimeError("GDRIVE_FILE_ID not set and model file missing")
         import gdown
-        url = f"https://drive.google.com/uc?id={GDRIVE_FILE_ID}"
-        gdown.download(url, MODEL_PATH, quiet=False, fuzzy=True)
+        # If it's a folder ID, we need to find the .h5 file in the folder
+        if len(GDRIVE_FILE_ID) == 33:  # Folder ID length
+            # Download the entire folder and find the .h5 file
+            folder_url = f"https://drive.google.com/drive/folders/{GDRIVE_FILE_ID}"
+            gdown.download_folder(folder_url, output="/app/models", quiet=False)
+            # Find the .h5 file
+            import glob
+            h5_files = glob.glob("/app/models/**/*.h5", recursive=True)
+            if h5_files:
+                # Use the first .h5 file found
+                actual_model_path = h5_files[0]
+                # Move it to the expected location
+                import shutil
+                shutil.move(actual_model_path, MODEL_PATH)
+        else:
+            # Direct file download
+            url = f"https://drive.google.com/uc?id={GDRIVE_FILE_ID}"
+            gdown.download(url, MODEL_PATH, quiet=False, fuzzy=True)
 
 # Load model at startup
 ensure_model()
