@@ -3,8 +3,8 @@ import requests
 import streamlit as st
 from PIL import Image
 
-FASTAPI_URL = os.getenv("FASTAPI_URL", "http://localhost/api/predict")
-FASTAPI_URL_BATCH = os.getenv("FASTAPI_URL_BATCH", "http://localhost/api/predict-batch")
+FASTAPI_URL = os.getenv("FASTAPI_URL", "http://localhost:8000/predict")
+FASTAPI_URL_BATCH = os.getenv("FASTAPI_URL_BATCH", "http://localhost:8000/predict-batch")
 
 st.set_page_config(page_title="Pneumonia Prediction Diagnosis", page_icon="🩺", layout="wide")
 
@@ -128,9 +128,13 @@ if go:
                 prob = float(data["prob_pneumonia"])
                 time_ms = int(data.get("time_ms", dt))
 
+                # Display results
                 diag_text.markdown(f"### **{pred}**")
                 acc_text.markdown(f"### **{prob*100:,.1f} %**")
                 t_text.write(f"{time_ms} ms")
+
+                # Success message
+                st.success(f"✅ Diagnosis: **{pred}** | Confidence: **{prob*100:,.1f}%** | Time: **{time_ms} ms**")
 
                 # show Grad-CAM heatmap
                 if "heatmap_b64" in data:
