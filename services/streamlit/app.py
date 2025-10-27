@@ -80,17 +80,16 @@ with c1:
 # --- Result area (right) ---
 with c2:
     st.markdown(f"### 📊 {t['prediction_result']}")
-    st.caption(f"{t['connecting_api']} [{FASTAPI_URL}]({FASTAPI_URL})")
     diag_col, acc_col = st.columns([1,1])
     with diag_col:
         st.markdown(f"**{t['diagnosis']}**")
         diag_text = st.empty()
     with acc_col:
-        st.markdown(f"**{t['accuracy']}**")
+        st.markdown("**Prediction Time**")
         acc_text = st.empty()
 
-    st.markdown(f"### ⚙️ {t['model_usage']}")
-    st.caption(t['prediction_time'])
+    st.markdown("**Model Accuracy**")
+    st.caption("Accuracy from training")
     t_text = st.empty()
 
     st.write("")
@@ -130,12 +129,12 @@ if go:
 
                 # Display results
                 diag_text.markdown(f"### **{pred}**")
-                acc_text.markdown(f"### **{prob*100:,.1f} %**")
-                t_text.write(f"{time_ms} ms")
+                acc_text.markdown(f"### **{time_ms} ms**")
+                t_text.write(f"**{model_acc:,.1f}%**")
 
-                # Success message with model accuracy
+                # Success message
                 model_acc = data.get("model_accuracy", 0.92) * 100
-                st.success(f"✅ **Diagnosis: {pred}** | **Confidence: {prob*100:,.1f}%** | **Time: {time_ms} ms** | **Model Accuracy: {model_acc:,.1f}%**")
+                st.success(f"✅ **Diagnosis: {pred}** | **Confidence: {prob*100:,.1f}%**")
 
                 # show Grad-CAM heatmap
                 if "heatmap_b64" in data:
