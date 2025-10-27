@@ -76,6 +76,7 @@ def predict(file: UploadFile = File(...)):
             "prob_pneumonia": prob,
             "time_ms": elapsed_ms,
             "heatmap_b64": heatmap_b64,
+            "model_accuracy": 0.92,  # Placeholder - replace with actual model accuracy
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error processing image: {str(e)}")

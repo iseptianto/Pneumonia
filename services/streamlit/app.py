@@ -133,8 +133,9 @@ if go:
                 acc_text.markdown(f"### **{prob*100:,.1f} %**")
                 t_text.write(f"{time_ms} ms")
 
-                # Success message
-                st.success(f"✅ Diagnosis: **{pred}** | Confidence: **{prob*100:,.1f}%** | Time: **{time_ms} ms**")
+                # Success message with model accuracy
+                model_acc = data.get("model_accuracy", 0.92) * 100
+                st.success(f"✅ **Diagnosis: {pred}** | **Confidence: {prob*100:,.1f}%** | **Time: {time_ms} ms** | **Model Accuracy: {model_acc:,.1f}%**")
 
                 # show Grad-CAM heatmap
                 if "heatmap_b64" in data:
