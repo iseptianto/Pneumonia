@@ -4,16 +4,14 @@ services:
   fastapi:
     build: ./services/fastapi
     container_name: pneumonia-fastapi
-    ports:
-      - "8000:8000"
+    ports: ["8000:8000"]
     environment:
-      MLFLOW_TRACKING_URI: http://mlflow:5000
       MODEL_PATH: /app/models/pneumonia_cnn.h5
+      GDRIVE_FILE_ID: "1gllKhGHhw0dlAqE10E5uIW1q6A3puFQd"   # <— ganti dengan FILE_ID kamu
     volumes:
-      - ./models:/app/models:ro
-    depends_on:
-      - mlflow
+      - ./models:/app/models          # cache lokal supaya tidak download ulang
     restart: unless-stopped
+
 
   streamlit:
     build: ./services/streamlit

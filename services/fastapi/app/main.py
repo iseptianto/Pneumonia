@@ -8,8 +8,27 @@ from tensorflow.keras.models import load_model
 from .utils import preprocess_pil, make_gradcam_heatmap, overlay_heatmap_on_image
 from prometheus_fastapi_instrumentator import Instrumentator
 
+
+import os
+import gdown
+from tensorflow.keras.models import load_model
+# panggil sekali saat container start
+
+ensure_model()
+model = load_model(MODEL_PATH)
+
 MODEL_PATH = os.getenv("MODEL_PATH", "/app/models/pneumonia_cnn.h5")
-MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
+GDRIVE_FILE_ID = os.getenv("GDRIVE_FILE_ID", "")
+
+def ensure_model():
+    os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
+    if not os.path.exists(MODEL_PATH):
+        if not GDRIVE_FILE_ID:
+            raise RuntimeError("GDRIVE_FILE_ID not set and model file missing")
+        url = f"https://drive.google.com/uc?id={GDRIVE_FILE_ID}"
+        # fuzzy=True biar bisa handle berbagai format link
+        gdown.download(url, MODEL_PATH, quiet=False, fuzzy=True)
+
 
 app = FastAPI(title="Pneumonia Inference API", version="1.1.0")
 app.add_middleware(
