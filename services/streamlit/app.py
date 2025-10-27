@@ -101,11 +101,9 @@ if go:
         st.warning(t['upload_warning'])
     else:
         try:
-            # Handle Streamlit UploadedFile
-            if hasattr(uploaded, 'read'):
-                img = Image.open(uploaded).convert("RGB")
-            else:
-                img = Image.open(io.BytesIO(uploaded.read())).convert("RGB")
+            # Handle Streamlit UploadedFile - seek to beginning first
+            uploaded.seek(0)
+            img = Image.open(uploaded).convert("RGB")
             with c1:
                 st.image(img, caption=t['preview'], use_container_width=True)
 
