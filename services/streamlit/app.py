@@ -53,105 +53,54 @@ texts = {
     }
 }
 
-# Top right corner controls
-col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
-with col2:
-    lang = st.selectbox("", ["EN", "ID"], index=0, label_visibility="collapsed")
-with col3:
-    st.markdown("[📄 Docs](https://docs.google.com/document/d/16kKwc9ChYLudeP3MeX18IPlnWezW-DXY9oWYZaVvy84/edit?usp=sharing)", unsafe_allow_html=True)
-with col4:
-    st.markdown("[📞 Contact](https://wa.me/628983776946)", unsafe_allow_html=True)
+# Header with left-aligned title and right-aligned controls
+header_col1, header_col2 = st.columns([3, 1])
+with header_col1:
+    st.markdown("# 🩺 Pneumonia Prediction Diagnosis")
+with header_col2:
+    controls_col1, controls_col2, controls_col3 = st.columns(3)
+    with controls_col1:
+        lang = st.selectbox("", ["EN", "ID"], index=0, label_visibility="collapsed")
+    with controls_col2:
+        st.markdown("[📄](https://docs.google.com/document/d/16kKwc9ChYLudeP3MeX18IPlnWezW-DXY9oWYZaVvy84/edit?usp=sharing)", unsafe_allow_html=True)
+    with controls_col3:
+        st.markdown("[📞](https://wa.me/628983776946)", unsafe_allow_html=True)
 
 lang_key = "en" if lang == "EN" else "id"
 t = texts[lang_key]
 
-# --- Header ---
-st.markdown(f"# {t['title']}")
-st.markdown(f"*{t['description']}*")
+st.markdown("*Upload an X-ray or CT scan image to predict pneumonia using AI. This app uses a ResNet50 CNN model trained on medical imaging data for accurate diagnosis.*")
 
-# Add some spacing and visual elements
 st.markdown("---")
-st.write("")  # spacer
 
-# Create a more structured layout with cards-like appearance
-st.markdown("""
-<style>
-    .main-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 2rem;
-        border-radius: 15px;
-        color: white;
-        text-align: center;
-        margin-bottom: 2rem;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-    .upload-section {
-        background: #f8f9fa;
-        padding: 2rem;
-        border-radius: 10px;
-        border: 2px dashed #dee2e6;
-        margin-bottom: 2rem;
-    }
-    .result-section {
-        background: #ffffff;
-        padding: 2rem;
-        border-radius: 10px;
-        border: 1px solid #e9ecef;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-    }
-    .metric-card {
-        background: #f8f9fa;
-        padding: 1rem;
-        border-radius: 8px;
-        text-align: center;
-        margin-bottom: 1rem;
-    }
-</style>
-""", unsafe_allow_html=True)
+# Main content layout
+upload_col, result_col = st.columns([1.2, 1])
 
-# Main content in columns
-main_col1, main_col2 = st.columns([1.5, 1])
-
-with main_col1:
-    st.markdown('<div class="upload-section">', unsafe_allow_html=True)
+with upload_col:
     st.markdown("### 📤 Upload Medical Image")
     st.markdown("*Supported formats: JPG, PNG, JPEG (max 10MB)*")
     uploaded = st.file_uploader("", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
     st.write("---")
     go = st.button("🔍 Analyze Image", type="primary", use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
 
-with main_col2:
-    st.markdown('<div class="result-section">', unsafe_allow_html=True)
+with result_col:
     st.markdown("### 📊 Analysis Results")
 
-    # Results metrics in cards
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown("**🏥 Diagnosis**")
-        diag_text = st.empty()
-        st.markdown('</div>', unsafe_allow_html=True)
+    # Diagnosis result
+    st.markdown("**🏥 Diagnosis**")
+    diag_text = st.empty()
 
-    with col2:
-        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown("**⚡ Confidence**")
-        conf_text = st.empty()
-        st.markdown('</div>', unsafe_allow_html=True)
+    # Confidence
+    st.markdown("**⚡ Confidence**")
+    conf_text = st.empty()
 
-    # Additional metrics
-    col3, col4 = st.columns(2)
-    with col3:
-        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown("**⏱️ Processing Time**")
-        time_text = st.empty()
-        st.markdown('</div>', unsafe_allow_html=True)
+    # Processing time
+    st.markdown("**⏱️ Processing Time**")
+    time_text = st.empty()
 
-    with col4:
-        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown("**🎯 Model Accuracy**")
-        acc_text = st.empty()
-        st.markdown('</div>', unsafe_allow_html=True)
+    # Model accuracy
+    st.markdown("**🎯 Model Accuracy**")
+    acc_text = st.empty()
 
     st.markdown("---")
 
@@ -165,8 +114,6 @@ with main_col2:
         st.markdown("**🧠 Grad-CAM**")
         gradcam_placeholder = st.empty()
 
-    st.markdown('</div>', unsafe_allow_html=True)
-
 # --- Predict action ---
 if go:
     if uploaded is None:
@@ -178,7 +125,7 @@ if go:
             img = Image.open(uploaded).convert("RGB")
 
             # Show uploaded image in upload section
-            with main_col1:
+            with upload_col:
                 st.markdown("### 🖼️ Uploaded Image")
                 st.image(img, caption="Medical scan preview", use_column_width=True)
 
@@ -199,7 +146,7 @@ if go:
                 time_ms = int(data.get("time_ms", dt))
                 model_acc = data.get("model_accuracy", 0.92) * 100
 
-                # Update result cards
+                # Update results
                 diag_text.markdown(f"### **{pred}**")
                 conf_text.markdown(f"### **{prob*100:,.1f}%**")
                 time_text.markdown(f"### **{time_ms} ms**")
