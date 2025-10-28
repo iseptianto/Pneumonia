@@ -2,10 +2,23 @@ import os, io, base64, time
 import requests
 import streamlit as st
 from PIL import Image
-import os
 
 FASTAPI_URL = os.getenv("FASTAPI_URL", "https://pneumonia-on4f.onrender.com/predict")
 FASTAPI_URL_BATCH = os.getenv("FASTAPI_URL_BATCH", "https://pneumonia-on4f.onrender.com/predict-batch")
+
+def wait_until_ready(timeout=120, interval=2):
+    """Wait for FastAPI backend to be ready."""
+    import time
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            resp = requests.get(f"{FASTAPI_URL.replace('/predict', '/health')}", timeout=5)
+            if resp.status_code == 200 and resp.json().get("model_ready"):
+                return True
+        except:
+            pass
+        time.sleep(interval)
+    return False
 
 st.set_page_config(page_title="Pneumonia Prediction Diagnosis", page_icon="🩺", layout="wide")
 
@@ -203,6 +216,12 @@ if go:
                 st.markdown("### 🖼️ Uploaded Image")
                 st.image(img, caption="Medical scan preview", use_column_width=True)
 
+            # Check if backend is ready
+            with st.spinner("🔄 Warming up server & loading model..."):
+                if not wait_until_ready():
+                    st.error("❌ Server is not ready. Please try again in a few moments.")
+                    return
+
             # Initialize progress
             progress_bar.progress(0)
             progress_text.text("Starting analysis...")
@@ -220,9 +239,23 @@ if go:
                 progress_text.text("Sending to AI model...")
 
                 t0 = time.time()
-                resp = requests.post(FASTAPI_URL, files={"file": ("image.png", buf, "image/png")}, timeout=120)
-                dt = (time.time() - t0) * 1000
 
+                # Try prediction with exponential backoff for 503 errors
+                max_retries = 5
+                for attempt in range(max_retries):
+                    try:
+                        resp = requests.post(FASTAPI_URL, files={"file": ("image.png", buf, "image/png")}, timeout=120)
+                        if resp.status_code != 503:
+                            break
+                        elif attempt < max_retries - 1:
+                            wait_time = 2 ** attempt  # 2, 3, 5, 8, 13 seconds
+                            progress_text.text(f"Model loading... retrying in {wait_time}s")
+                            time.sleep(wait_time)
+                    except Exception as e:
+                        if attempt == max_retries - 1:
+                            raise e
+
+                dt = (time.time() - t0) * 1000
                 progress_bar.progress(75)
                 progress_text.text("Processing results...")
 
@@ -233,8 +266,8 @@ if go:
             else:
                 data = resp.json()
                 pred = data["prediction"]
-                prob = float(data["prob_pneumonia"])
-                time_ms = int(data.get("time_ms", dt))
+                prob = float(data["confidence"])
+                time_ms = int(data.get("processing_time_ms", dt))
                 model_acc = data.get("model_accuracy", 0.92) * 100
 
                 progress_bar.progress(100)
