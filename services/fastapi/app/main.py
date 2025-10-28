@@ -18,7 +18,7 @@ from .utils import preprocess_pil, make_gradcam_heatmap, overlay_heatmap_on_imag
 
 # ========= Env & Config =========
 MODEL_PATH = os.getenv("MODEL_PATH", "/app/models/pneumonia_cnn.h5")
-GDRIVE_FILE_ID = os.getenv("GDRIVE_FILE_ID", "")
+GDRIVE_FILE_ID = os.getenv("GDRIVE_FILE_ID", "1gllKhGHhw0dlAqE10E5uIW1q6A3puFQd")
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "")
 CORS_ALLOW_ORIGINS = os.getenv("CORS_ALLOW_ORIGINS", "*").split(",")
 LAST_CONV_NAME = os.getenv("LAST_CONV_NAME", "conv2d_2")  # sesuaikan dgn model
