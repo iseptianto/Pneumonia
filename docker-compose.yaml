@@ -1,7 +1,5 @@
 version: "3.9"
 
-version: "3.9"
-
 x-common-env: &common_env
   TZ: Asia/Jakarta
   PYTHONUNBUFFERED: "1"
@@ -14,12 +12,13 @@ services:
         - "8000:8000"
       environment:
         <<: *common_env
-        MODEL_PATH: /app/models/pneumonia_cnn.h5
+        MODEL_PATH: /app/models/pneumonia_resnet50_trained.h5
         # diisi dari file .env (AMAN, tidak hard-code)
-        GDRIVE_FILE_ID: ${GDRIVE_FILE_ID}
+        GDRIVE_FILE_ID: ${GDRIVE_FILE_ID:-1gllKhGHhw0dlAqE10E5uIW1q6A3puFQd}
         # optional: kalau kamu pakai URL langsung, bisa pakai MODEL_URL
         # MODEL_URL: ${MODEL_URL}
         CORS_ALLOW_ORIGINS: "*"              # atau pisahkan jadi daftar domain
+        LAST_CONV_NAME: "conv5_block3_out"   # Updated for ResNet50
       volumes:
         - ./models:/app/models               # cache model lokal supaya tak download ulang
       restart: unless-stopped
