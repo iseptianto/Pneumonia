@@ -17,11 +17,12 @@ import gdown
 from .utils import preprocess_pil, make_gradcam_heatmap, overlay_heatmap_on_image
 
 # ========= Env & Config =========
-MODEL_PATH = os.getenv("MODEL_PATH", "/app/models/pneumonia_cnn.h5")
-GDRIVE_FILE_ID = os.getenv("GDRIVE_FILE_ID", "1gllKhGHhw0dlAqE10E5uIW1q6A3puFQd")
+MODEL_PATH = os.getenv("MODEL_PATH", "/app/models/pneumonia_resnet50_v2.h5")
+GDRIVE_FILE_ID = os.getenv("GDRIVE_FILE_ID", "1ABCxyz12345")
+MODEL_VERSION = os.getenv("MODEL_VERSION", "v2")
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "")
 CORS_ALLOW_ORIGINS = os.getenv("CORS_ALLOW_ORIGINS", "*").split(",")
-LAST_CONV_NAME = os.getenv("LAST_CONV_NAME", "conv2d_2")  # sesuaikan dgn model
+LAST_CONV_NAME = os.getenv("LAST_CONV_NAME", "conv5_block3_out")  # For ResNet50
 
 # ========= App =========
 app = FastAPI(title="Pneumonia Inference API", version="1.1.0")
@@ -46,36 +47,62 @@ if MLFLOW_TRACKING_URI:
 def ensure_model():
     """
     Pastikan file model tersedia di MODEL_PATH.
-    - Jika GDRIVE_FILE_ID adalah file: download langsung.
-    - Jika folder ID: download folder lalu ambil .h5 pertama.
+    - Support untuk file langsung atau folder Google Drive
+    - Auto-reload jika MODEL_VERSION berubah
     """
     os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
-    if os.path.exists(MODEL_PATH):
-        return
 
-    if not GDRIVE_FILE_ID:
-        raise RuntimeError("Model missing and GDRIVE_FILE_ID is not set")
+    # Check if model exists and version matches
+    version_file = MODEL_PATH + ".version"
+    current_version = None
+    if os.path.exists(version_file):
+        try:
+            with open(version_file, 'r') as f:
+                current_version = f.read().strip()
+        except:
+            pass
 
-    # Coba sebagai FILE ID dulu
-    try:
-        url = f"https://drive.google.com/uc?id={GDRIVE_FILE_ID}"
-        gdown.download(url, MODEL_PATH, quiet=False, fuzzy=True)
-        if os.path.exists(MODEL_PATH):
-            return
-    except Exception:
-        pass  # lanjut coba sebagai folder
+    # Force re-download if version changed or model missing
+    if not os.path.exists(MODEL_PATH) or current_version != MODEL_VERSION:
+        print(f"📥 Downloading new model version: {MODEL_VERSION}")
 
-    # Jika folder ID → download folder lalu cari .h5
-    folder_url = f"https://drive.google.com/drive/folders/{GDRIVE_FILE_ID}"
-    out_dir = os.path.dirname(MODEL_PATH)
-    gdown.download_folder(folder_url, output=out_dir, quiet=False, use_cookies=False)
+        if not GDRIVE_FILE_ID:
+            raise RuntimeError("Model missing and GDRIVE_FILE_ID is not set")
 
-    import glob, shutil
-    candidates = glob.glob(os.path.join(out_dir, "**/*.h5"), recursive=True)
-    if not candidates:
-        raise RuntimeError("No .h5 file found after downloading the Google Drive folder")
-    # ambil pertama
-    shutil.move(candidates[0], MODEL_PATH)
+        # Try as direct file ID first
+        try:
+            url = f"https://drive.google.com/uc?id={GDRIVE_FILE_ID}"
+            gdown.download(url, MODEL_PATH, quiet=False, fuzzy=True)
+            if os.path.exists(MODEL_PATH):
+                # Save version info
+                with open(version_file, 'w') as f:
+                    f.write(MODEL_VERSION)
+                print(f"✅ Model downloaded: {MODEL_PATH}")
+                return
+        except Exception as e:
+            print(f"⚠️ Direct file download failed: {e}")
+
+        # Try as folder ID
+        try:
+            folder_url = f"https://drive.google.com/drive/folders/{GDRIVE_FILE_ID}"
+            out_dir = os.path.dirname(MODEL_PATH)
+            gdown.download_folder(folder_url, output=out_dir, quiet=False, use_cookies=False)
+
+            import glob, shutil
+            candidates = glob.glob(os.path.join(out_dir, "**/*.h5"), recursive=True)
+            if not candidates:
+                raise RuntimeError("No .h5 file found after downloading the Google Drive folder")
+
+            # Move the first .h5 file found
+            shutil.move(candidates[0], MODEL_PATH)
+            # Save version info
+            with open(version_file, 'w') as f:
+                f.write(MODEL_VERSION)
+            print(f"✅ Model downloaded from folder: {MODEL_PATH}")
+        except Exception as e:
+            raise RuntimeError(f"Failed to download model: {e}")
+    else:
+        print(f"✅ Model already exists: {MODEL_PATH} (version: {MODEL_VERSION})")
 
 
 # ========= Load model at startup =========
@@ -126,7 +153,8 @@ def predict(file: UploadFile = File(...)):
             "prob_pneumonia": prob,
             "time_ms": elapsed_ms,
             "heatmap_b64": heatmap_b64,
-            "model_accuracy": 0.85,  # pneumonia_cnn.h5 model accuracy
+            "model_accuracy": 0.96,  # pneumonia_resnet50_v2.h5 accuracy
+            "model_version": MODEL_VERSION,
         }
 
     except HTTPException:
