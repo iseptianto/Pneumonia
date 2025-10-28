@@ -126,7 +126,7 @@ def predict(file: UploadFile = File(...)):
             "prob_pneumonia": prob,
             "time_ms": elapsed_ms,
             "heatmap_b64": heatmap_b64,
-            "model_accuracy": 0.95,  # Updated model accuracy
+            "model_accuracy": 0.85,  # pneumonia_cnn.h5 model accuracy
         }
 
     except HTTPException:
