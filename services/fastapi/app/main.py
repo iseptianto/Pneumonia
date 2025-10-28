@@ -20,7 +20,9 @@ from .utils import preprocess_pil, make_gradcam_heatmap, overlay_heatmap_on_imag
 MODEL_PATH = os.getenv("MODEL_PATH", "/app/models/pneumonia_resnet50_v2.h5")
 GDRIVE_FILE_ID = os.getenv("GDRIVE_FILE_ID", "1ABCxyz12345")
 MODEL_VERSION = os.getenv("MODEL_VERSION", "v2")
-MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "")
+MLFLOW_ENABLED = os.getenv("MLFLOW_ENABLED", "true").lower() == "true"
+MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "").strip()
+MLFLOW_EXPERIMENT_NAME = os.getenv("MLFLOW_EXPERIMENT_NAME", "pneumonia-inference")
 CORS_ALLOW_ORIGINS = os.getenv("CORS_ALLOW_ORIGINS", "*").split(",")
 LAST_CONV_NAME = os.getenv("LAST_CONV_NAME", "conv5_block3_out")  # For ResNet50
 
@@ -37,10 +39,43 @@ app.add_middleware(
 # Prometheus /metrics
 Instrumentator().instrument(app).expose(app)
 
-# MLflow (opsional)
-if MLFLOW_TRACKING_URI:
-    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
-    mlflow.set_experiment("pneumonia-inference")
+# ========= MLflow Initialization =========
+def init_mlflow():
+    """Initialize MLflow with error handling. Returns True if enabled and reachable."""
+    if not MLFLOW_ENABLED:
+        print("[MLflow] disabled: MLFLOW_ENABLED=false")
+        return False
+
+    if not MLFLOW_TRACKING_URI:
+        print("[MLflow] disabled: MLFLOW_TRACKING_URI not set")
+        return False
+
+    try:
+        # Test connection with short timeout
+        import requests
+        test_url = MLFLOW_TRACKING_URI.rstrip('/') + "/api/2.0/mlflow/experiments/list"
+        requests.head(test_url, timeout=2)
+
+        # Set up MLflow
+        mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+        from mlflow.tracking import MlflowClient
+        client = MlflowClient()
+
+        # Ensure experiment exists
+        exp = client.get_experiment_by_name(MLFLOW_EXPERIMENT_NAME)
+        if exp is None:
+            client.create_experiment(MLFLOW_EXPERIMENT_NAME)
+
+        mlflow.set_experiment(MLFLOW_EXPERIMENT_NAME)
+        print(f"[MLflow] enabled: uri={MLFLOW_TRACKING_URI} exp={MLFLOW_EXPERIMENT_NAME}")
+        return True
+
+    except Exception as e:
+        print(f"[MLflow] disabled: {e}")
+        return False
+
+# Global MLflow state
+MLFLOW_ON = init_mlflow()
 
 
 # ========= Helpers =========
@@ -140,12 +175,15 @@ def predict(file: UploadFile = File(...)):
 
         elapsed_ms = int((time.time() - t0) * 1000)
 
-        # log mlflow (opsional)
-        if MLFLOW_TRACKING_URI:
-            with mlflow.start_run(run_name="infer"):
-                mlflow.log_param("filename", file.filename)
-                mlflow.log_metric("prob_pneumonia", prob)
-                mlflow.log_metric("elapsed_ms", elapsed_ms)
+        # log mlflow (optional, guarded)
+        if MLFLOW_ON:
+            try:
+                with mlflow.start_run(run_name="infer"):
+                    mlflow.log_param("filename", file.filename)
+                    mlflow.log_metric("prob_pneumonia", prob)
+                    mlflow.log_metric("elapsed_ms", elapsed_ms)
+            except Exception as e:
+                print(f"[MLflow] log skipped: {e}")
 
         return {
             "filename": file.filename,
