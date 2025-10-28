@@ -18,48 +18,37 @@ import mlflow
 # utils lokal
 from .utils import preprocess_pil, make_gradcam_heatmap, overlay_heatmap_on_image
 
-# ========= Env & Config =========
-MODEL_REPO_ID = os.getenv("MODEL_REPO_ID", "palawakampa/Pneumonia")
-MODEL_FILENAME = os.getenv("MODEL_FILENAME", "pneumonia_resnet50_v2.h5")
-MODEL_CACHE_DIR = os.getenv("MODEL_CACHE_DIR", "/tmp")
-MLFLOW_ENABLED = os.getenv("MLFLOW_ENABLED", "true").lower() == "true"
-MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "").strip()
-MLFLOW_EXPERIMENT_NAME = os.getenv("MLFLOW_EXPERIMENT_NAME", "pneumonia-inference")
-CORS_ALLOW_ORIGINS = os.getenv("CORS_ALLOW_ORIGINS", "*").split(",")
-LAST_CONV_NAME = os.getenv("LAST_CONV_NAME", "conv5_block3_out")  # For ResNet50
+# ========= Constants =========
+HF_REPO_ID = "palawakampa/Pneumonia"
+HF_FILENAME = "pneumonia_resnet50_v2.h5"
+LAST_CONV_NAME = "conv5_block3_out"  # For ResNet50
 
 # ========= Global State =========
 MODEL = None
 MODEL_READY = asyncio.Event()
 
-# ========= Lifespan & Model Loading =========
+# ========= Model Loading =========
+async def _load_model():
+    """Load model asynchronously during startup."""
+    global MODEL
+    try:
+        print("📥 Downloading model from Hugging Face...", flush=True)
+        model_path = hf_hub_download(repo_id=HF_REPO_ID, filename=HF_FILENAME, cache_dir="/tmp")
+        print("🔄 Loading TensorFlow model...", flush=True)
+        MODEL = tf.keras.models.load_model(model_path)
+        MODEL_READY.set()
+        print("✅ Model loaded successfully!", flush=True)
+    except Exception as e:
+        print(f"❌ Failed to load model: {e}", flush=True)
+
+# ========= Lifespan =========
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Handle startup and shutdown events."""
-    print("🚀 Starting Pneumonia Inference API...")
-
-    # Load model on startup
-    global MODEL
-    try:
-        print(f"📥 Downloading model from Hugging Face: {MODEL_REPO_ID}/{MODEL_FILENAME}")
-        model_path = hf_hub_download(
-            repo_id=MODEL_REPO_ID,
-            filename=MODEL_FILENAME,
-            cache_dir=MODEL_CACHE_DIR
-        )
-        print(f"🔄 Loading TensorFlow model: {model_path}")
-        MODEL = tf.keras.models.load_model(model_path)
-        print("✅ Model loaded successfully!")
-        MODEL_READY.set()
-
-    except Exception as e:
-        print(f"❌ Failed to load model: {e}")
-        # Don't set MODEL_READY - app will return 503
-
+    print("🚀 Starting Pneumonia Inference API...", flush=True)
+    asyncio.create_task(_load_model())
     yield
-
-    # Cleanup on shutdown
-    print("🛑 Shutting down Pneumonia Inference API...")
+    print("🛑 Shutting down Pneumonia Inference API...", flush=True)
 
 # ========= App =========
 app = FastAPI(
@@ -69,7 +58,7 @@ app = FastAPI(
 )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=CORS_ALLOW_ORIGINS,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -80,38 +69,36 @@ Instrumentator().instrument(app).expose(app)
 
 # ========= MLflow Initialization =========
 def init_mlflow():
-    """Initialize MLflow with error handling. Returns True if enabled and reachable."""
-    if not MLFLOW_ENABLED:
-        print("[MLflow] disabled: MLFLOW_ENABLED=false")
-        return False
+    """Initialize MLflow only if explicitly enabled."""
+    if os.getenv("ENABLE_MLFLOW", "0") == "1":
+        try:
+            # Import and setup MLflow
+            import mlflow
+            from mlflow.tracking import MlflowClient
 
-    if not MLFLOW_TRACKING_URI:
-        print("[MLflow] disabled: MLFLOW_TRACKING_URI not set")
-        return False
+            tracking_uri = os.getenv("MLFLOW_TRACKING_URI", "").strip()
+            experiment_name = os.getenv("MLFLOW_EXPERIMENT_NAME", "pneumonia-inference")
 
-    try:
-        # Test connection with short timeout
-        import requests
-        test_url = MLFLOW_TRACKING_URI.rstrip('/') + "/api/2.0/mlflow/experiments/list"
-        requests.head(test_url, timeout=2)
+            if tracking_uri:
+                mlflow.set_tracking_uri(tracking_uri)
+                client = MlflowClient()
 
-        # Set up MLflow
-        mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
-        from mlflow.tracking import MlflowClient
-        client = MlflowClient()
+                # Ensure experiment exists
+                exp = client.get_experiment_by_name(experiment_name)
+                if exp is None:
+                    client.create_experiment(experiment_name)
 
-        # Ensure experiment exists
-        exp = client.get_experiment_by_name(MLFLOW_EXPERIMENT_NAME)
-        if exp is None:
-            client.create_experiment(MLFLOW_EXPERIMENT_NAME)
+                mlflow.set_experiment(experiment_name)
+                print(f"[MLflow] enabled: uri={tracking_uri} exp={experiment_name}", flush=True)
+                return True
+            else:
+                print("[MLflow] disabled: MLFLOW_TRACKING_URI not set", flush=True)
+        except Exception as e:
+            print(f"[MLflow] disabled: {e}", flush=True)
+    else:
+        print("[MLflow] disabled: ENABLE_MLFLOW != 1", flush=True)
 
-        mlflow.set_experiment(MLFLOW_EXPERIMENT_NAME)
-        print(f"[MLflow] enabled: uri={MLFLOW_TRACKING_URI} exp={MLFLOW_EXPERIMENT_NAME}")
-        return True
-
-    except Exception as e:
-        print(f"[MLflow] disabled: {e}")
-        return False
+    return False
 
 # Global MLflow state
 MLFLOW_ON = init_mlflow()
@@ -266,29 +253,23 @@ else:
 # ========= Routes =========
 @app.get("/health")
 async def health():
-    """Health check endpoint with model readiness status."""
+    """Health check endpoint."""
     if MODEL_READY.is_set():
-        return {"status": "ok", "model_ready": True}
+        return {"status": "ok"}
     else:
-        return {"status": "loading", "model_ready": False}
-
+        return {"status": "loading"}
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
     """Predict pneumonia from uploaded X-ray image."""
     if not MODEL_READY.is_set():
-        raise HTTPException(
-            status_code=503,
-            detail="Model not ready. Server is still loading the model. Please try again in a few moments."
-        )
+        raise HTTPException(status_code=503, detail="Model not ready. Please try again later.")
+
+    # Validate file type
+    if not file.content_type or not file.content_type.startswith('image/'):
+        raise HTTPException(status_code=400, detail="File must be an image (JPG, PNG, JPEG)")
 
     try:
-        # Validate file type
-        if not file.content_type or not file.content_type.startswith('image/'):
-            raise HTTPException(status_code=400, detail="File must be an image (JPG, PNG, JPEG)")
-
-        t0 = time.time()
-
         # Read and preprocess image
         contents = await file.read()
         img = Image.open(io.BytesIO(contents)).convert("RGB")
@@ -296,79 +277,12 @@ async def predict(file: UploadFile = File(...)):
 
         # Inference
         prob = float(MODEL.predict(x, verbose=0)[0][0])
-        label = "PNEUMONIA" if prob > 0.5 else "NORMAL"
-
-        # Grad-CAM visualization
-        heatmap = make_gradcam_heatmap(x, MODEL, last_conv_layer_name=LAST_CONV_NAME)
-        overlay = overlay_heatmap_on_image(heatmap, img)
-
-        # Encode heatmap to base64
-        buf = io.BytesIO()
-        overlay.save(buf, format="PNG")
-        heatmap_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
-
-        elapsed_ms = int((time.time() - t0) * 1000)
-
-        # Log to MLflow (optional)
-        if MLFLOW_ON:
-            try:
-                with mlflow.start_run(run_name="infer"):
-                    mlflow.log_param("filename", file.filename)
-                    mlflow.log_metric("prob_pneumonia", prob)
-                    mlflow.log_metric("elapsed_ms", elapsed_ms)
-            except Exception as e:
-                print(f"[MLflow] log skipped: {e}")
+        label = "Pneumonia" if prob > 0.5 else "Normal"
 
         return {
             "prediction": label,
-            "confidence": round(prob, 4),
-            "processing_time_ms": elapsed_ms,
-            "model_accuracy": 0.96,  # pneumonia_resnet50_v2.h5 accuracy
-            "model_version": "v2",
-            "heatmap_b64": heatmap_b64
+            "confidence": round(prob, 4)
         }
 
-    except HTTPException:
-        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error processing image: {str(e)}")
-
-
-@app.post("/predict-batch")
-async def predict_batch(files: List[UploadFile] = File(...)):
-    """Batch predict pneumonia from multiple uploaded X-ray images."""
-    if not MODEL_READY.is_set():
-        raise HTTPException(
-            status_code=503,
-            detail="Model not ready. Server is still loading the model. Please try again in a few moments."
-        )
-
-    try:
-        results = []
-        for file in files:
-            # Validate file type
-            if not file.content_type or not file.content_type.startswith('image/'):
-                results.append({"filename": file.filename, "error": "File must be an image"})
-                continue
-
-            try:
-                # Read and preprocess image
-                contents = await file.read()
-                img = Image.open(io.BytesIO(contents)).convert("RGB")
-                x = preprocess_pil(img)
-
-                # Inference
-                prob = float(MODEL.predict(x, verbose=0)[0][0])
-                label = "PNEUMONIA" if prob > 0.5 else "NORMAL"
-
-                results.append({
-                    "filename": file.filename,
-                    "prediction": label,
-                    "confidence": round(prob, 4)
-                })
-            except Exception as e:
-                results.append({"filename": file.filename, "error": str(e)})
-
-        return {"results": results}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error processing batch: {str(e)}")

@@ -4,7 +4,7 @@ python-multipart
 pillow
 requests
 huggingface_hub
-tensorflow-cpu
+tensorflow-cpu==2.20.0
 numpy
 prometheus-fastapi-instrumentator
 mlflow
