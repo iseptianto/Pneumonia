@@ -4,8 +4,8 @@ import streamlit as st
 from PIL import Image
 import os
 
-FASTAPI_URL = os.getenv("FASTAPI_URL", "http://fastapi:8000/predict")
-FASTAPI_URL_BATCH = os.getenv("FASTAPI_URL_BATCH", "http://localhost:8000/predict-batch")
+FASTAPI_URL = os.getenv("FASTAPI_URL", "https://pneumonia-on4f.onrender.com/predict")
+FASTAPI_URL_BATCH = os.getenv("FASTAPI_URL_BATCH", "https://pneumonia-on4f.onrender.com/predict-batch")
 
 st.set_page_config(page_title="Pneumonia Prediction Diagnosis", page_icon="🩺", layout="wide")
 
@@ -71,6 +71,62 @@ t = texts[lang_key]
 
 st.markdown("*Upload an X-ray or CT scan image to predict pneumonia using AI. This app uses a ResNet50 CNN model trained on medical imaging data for accurate diagnosis.*")
 
+# Add custom CSS for medical blue theme and drag-drop styling
+st.markdown("""
+<style>
+    .main {
+        background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+        min-height: 100vh;
+    }
+    .stFileUploader {
+        background: #ffffff;
+        border: 2px dashed #2196f3;
+        border-radius: 10px;
+        padding: 20px;
+        text-align: center;
+        transition: all 0.3s ease;
+    }
+    .stFileUploader:hover {
+        border-color: #1976d2;
+        background: #f8f9fa;
+    }
+    .result-box {
+        background: #ffffff;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        margin: 10px 0;
+    }
+    .diagnosis-normal {
+        color: #4caf50;
+        font-weight: bold;
+    }
+    .diagnosis-pneumonia {
+        color: #f44336;
+        font-weight: bold;
+    }
+    .metric-value {
+        font-size: 1.2em;
+        font-weight: bold;
+        color: #2196f3;
+    }
+    .progress-bar {
+        width: 100%;
+        height: 20px;
+        background: #e0e0e0;
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 10px 0;
+    }
+    .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #2196f3, #21cbf3);
+        width: 0%;
+        transition: width 0.3s ease;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 st.markdown("---")
 
 # Main content layout
@@ -81,26 +137,44 @@ with upload_col:
     st.markdown("*Supported formats: JPG, PNG, JPEG (max 10MB)*")
     uploaded = st.file_uploader("", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
     st.write("---")
+
+    # Progress bar placeholder
+    progress_bar = st.empty()
+    progress_text = st.empty()
+
     go = st.button("🔍 Analyze Image", type="primary", use_container_width=True)
+
+    # Try another image button (shown after analysis)
+    try_again = st.button("🔄 Try Another Image", type="secondary", use_container_width=True)
+    if try_again:
+        st.rerun()
 
 with result_col:
     st.markdown("### 📊 Analysis Results")
 
-    # Diagnosis result
+    # Diagnosis result with styled box
+    st.markdown('<div class="result-box">', unsafe_allow_html=True)
     st.markdown("**🏥 Diagnosis**")
     diag_text = st.empty()
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # Confidence
+    # Confidence with styled box
+    st.markdown('<div class="result-box">', unsafe_allow_html=True)
     st.markdown("**⚡ Confidence**")
     conf_text = st.empty()
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # Processing time
+    # Processing time with styled box
+    st.markdown('<div class="result-box">', unsafe_allow_html=True)
     st.markdown("**⏱️ Processing Time**")
     time_text = st.empty()
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # Model accuracy
+    # Model accuracy with styled box
+    st.markdown('<div class="result-box">', unsafe_allow_html=True)
     st.markdown("**🎯 Model Accuracy**")
     acc_text = st.empty()
+    st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown("---")
 
@@ -129,15 +203,32 @@ if go:
                 st.markdown("### 🖼️ Uploaded Image")
                 st.image(img, caption="Medical scan preview", use_column_width=True)
 
+            # Initialize progress
+            progress_bar.progress(0)
+            progress_text.text("Starting analysis...")
+
             with st.spinner("🔄 Analyzing image with AI..."):
+                # Simulate progress steps
+                progress_bar.progress(25)
+                progress_text.text("Preprocessing image...")
+
                 buf = io.BytesIO()
                 img.save(buf, format="PNG")
                 buf.seek(0)
+
+                progress_bar.progress(50)
+                progress_text.text("Sending to AI model...")
+
                 t0 = time.time()
                 resp = requests.post(FASTAPI_URL, files={"file": ("image.png", buf, "image/png")}, timeout=120)
                 dt = (time.time() - t0) * 1000
 
+                progress_bar.progress(75)
+                progress_text.text("Processing results...")
+
             if not resp.ok:
+                progress_bar.progress(0)
+                progress_text.text("")
                 st.error(f"❌ Analysis failed: {resp.status_code} - {resp.text}")
             else:
                 data = resp.json()
@@ -146,11 +237,15 @@ if go:
                 time_ms = int(data.get("time_ms", dt))
                 model_acc = data.get("model_accuracy", 0.92) * 100
 
-                # Update results
-                diag_text.markdown(f"### **{pred}**")
-                conf_text.markdown(f"### **{prob*100:,.1f}%**")
-                time_text.markdown(f"### **{time_ms} ms**")
-                acc_text.markdown(f"### **{model_acc:,.1f}%**")
+                progress_bar.progress(100)
+                progress_text.text("Analysis complete!")
+
+                # Update results with styled boxes
+                diag_class = "diagnosis-normal" if pred == "NORMAL" else "diagnosis-pneumonia"
+                diag_text.markdown(f'<span class="{diag_class}">### {pred}</span>', unsafe_allow_html=True)
+                conf_text.markdown(f'<span class="metric-value">### {prob*100:,.1f}%</span>', unsafe_allow_html=True)
+                time_text.markdown(f'<span class="metric-value">### {time_ms} ms</span>', unsafe_allow_html=True)
+                acc_text.markdown(f'<span class="metric-value">### {model_acc:,.1f}%</span>', unsafe_allow_html=True)
 
                 # Success message with emoji based on result
                 emoji = "🟢" if pred == "NORMAL" else "🔴"
@@ -168,4 +263,6 @@ if go:
                         gradcam_placeholder.image(heatmap_img, caption="Grad-CAM visualization", use_column_width=True)
 
         except Exception as e:
+            progress_bar.progress(0)
+            progress_text.text("")
             st.error(f"❌ Error processing image: {str(e)}. Please ensure the file is a valid medical image.")
