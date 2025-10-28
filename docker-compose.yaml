@@ -1,58 +1,102 @@
 version: "3.9"
 
+version: "3.9"
+
+x-common-env: &common_env
+  TZ: Asia/Jakarta
+  PYTHONUNBUFFERED: "1"
+
 services:
-  fastapi:
-    build: ./services/fastapi
-    container_name: pneumonia-fastapi
-    ports: ["8000:8000"]
-    environment:
-      MODEL_PATH: /app/models/pneumonia_cnn.h5
-      GDRIVE_FILE_ID: "1gllKhGHhw0dlAqE10E5uIW1q6A3puFQd"   # <— ganti dengan FILE_ID kamu
-    volumes:
-      - ./models:/app/models          # cache lokal supaya tidak download ulang
-    restart: unless-stopped
+    fastapi:
+      build: ./services/fastapi
+      container_name: pneumonia-fastapi
+      ports:
+        - "8000:8000"
+      environment:
+        <<: *common_env
+        MODEL_PATH: /app/models/pneumonia_cnn.h5
+        # diisi dari file .env (AMAN, tidak hard-code)
+        GDRIVE_FILE_ID: ${GDRIVE_FILE_ID}
+        # optional: kalau kamu pakai URL langsung, bisa pakai MODEL_URL
+        # MODEL_URL: ${MODEL_URL}
+        CORS_ALLOW_ORIGINS: "*"              # atau pisahkan jadi daftar domain
+      volumes:
+        - ./models:/app/models               # cache model lokal supaya tak download ulang
+      restart: unless-stopped
+      healthcheck:
+        # pastikan image fastapi punya curl atau wget; kalau tidak, ganti ke python one-liner
+        test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health || wget -qO- http://localhost:8000/health || exit 1"]
+        interval: 30s
+        timeout: 5s
+        retries: 5
+
+    streamlit:
+      build: ./services/streamlit
+      container_name: pneumonia-streamlit
+      depends_on:
+        fastapi:
+          condition: service_healthy
+      ports:
+        - "8501:8501"
+      environment:
+        <<: *common_env
+        # ← sangat penting: gunakan NAMA SERVICE fastapi (jaringan internal Docker)
+        FASTAPI_URL: http://fastapi:8000/predict
+        # kalau kamu juga punya endpoint batch di FastAPI:
+        FASTAPI_URL_BATCH: http://fastapi:8000/predict/batch
+      restart: unless-stopped
+
+  # (opsional) MLflow untuk eksperimen/tracking lokal
+  # mlflow:
+  #   build: ./services/mlflow
+  #   container_name: pneumonia-mlflow
+  #   command: >
+  #     bash -lc "
+  #     mlflow server
+  #     --host 0.0.0.0
+  #     --port 5000
+  #     --backend-store-uri sqlite:///mlflow.db
+  #     --default-artifact-root /mlruns"
+  #   volumes:
+  #     - ./mlruns:/mlruns
+  #   ports:
+  #     - "5000:5000"
+  #   restart: unless-stopped
+
+networks:
+  default:
+    name: pneumonia-net
 
 
-  streamlit:
-    build: ./services/streamlit
-    container_name: pneumonia-streamlit
-    environment:
-      # Nginx akan proxy ini ke fastapi
-      FASTAPI_URL: http://nginx/api/predict
-      FASTAPI_URL_BATCH: http://nginx/api/predict-batch
-    depends_on:
-      - fastapi
-    restart: unless-stopped
+  # mlflow:
+  #   build: ./services/mlflow
+  #   container_name: pneumonia-mlflow
+  #   command: >
+  #     bash -lc "
+  #     mlflow server
+  #     --host 0.0.0.0
+  #     --port 5000
+  #     --backend-store-uri sqlite:///mlflow.db
+  #     --default-artifact-root /mlflow_artifacts
+  #     "
+  #   volumes:
+  #     - mlflow_db:/app
+  #     - mlflow_artifacts:/mlflow_artifacts
+  #   ports:
+  #     - "5001:5000"
+  #   restart: unless-stopped
 
-  mlflow:
-    build: ./services/mlflow
-    container_name: pneumonia-mlflow
-    command: >
-      bash -lc "
-      mlflow server
-      --host 0.0.0.0
-      --port 5000
-      --backend-store-uri sqlite:///mlflow.db
-      --default-artifact-root /mlflow_artifacts
-      "
-    volumes:
-      - mlflow_db:/app
-      - mlflow_artifacts:/mlflow_artifacts
-    ports:
-      - "5001:5000"
-    restart: unless-stopped
-
-  nginx:
-    image: nginx:alpine
-    container_name: pneumonia-nginx
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - streamlit
-      - fastapi
-    restart: unless-stopped
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: pneumonia-nginx
+  #   ports:
+  #     - "80:80"
+  #   volumes:
+  #     - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+  #   depends_on:
+  #     - streamlit
+  #     - fastapi
+  #   restart: unless-stopped
 
   prometheus:
     image: prom/prometheus:latest
