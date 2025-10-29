@@ -1,10 +1,10 @@
+.git
 __pycache__/
 *.pyc
-*.pyo
-*.pyd
-.vscode/
-.idea/
-.git/
-.gitignore
+*.ipynb
 .env
-*.log
+.env.*
+.DS_Store
+models/
+data/
+assets_raw/
