@@ -279,10 +279,11 @@ if go:
                 diag_text.markdown(f'<span class="{diag_class}">### {pred}</span>', unsafe_allow_html=True)
                 conf_text.markdown(f'<span class="metric-value">### {prob*100:,.1f}%</span>', unsafe_allow_html=True)
 
-                # Display processing time
-                ms = st.session_state.get("processing_ms")
-                if ms is not None:
-                    time_text.markdown(f'<span class="metric-value">### {ms} ms ({ms/1000:.2f} s)</span>', unsafe_allow_html=True)
+                # Display processing time from API response
+                processing_times = data.get("processing_times", {})
+                total_ms = processing_times.get("total_ms", st.session_state.get("processing_ms"))
+                if total_ms is not None:
+                    time_text.markdown(f'<span class="metric-value">### {total_ms:.0f} ms ({total_ms/1000:.2f} s)</span>', unsafe_allow_html=True)
                 else:
                     time_text.markdown("### N/A")
 

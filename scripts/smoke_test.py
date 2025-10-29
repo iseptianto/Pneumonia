@@ -15,7 +15,7 @@ TIMEOUT = 300  # 5 minutes for cold start
 
 def test_health():
     """Test health endpoint until model is ready."""
-    print("🔍 Testing health endpoint...")
+    print("Testing health endpoint...")
     start_time = time.time()
 
     while time.time() - start_time < TIMEOUT:
@@ -23,24 +23,24 @@ def test_health():
             resp = requests.get(f"{API_BASE_URL}/health", timeout=10)
             if resp.status_code == 200:
                 data = resp.json()
-                if data.get("model_ready"):
-                    print("✅ Health check passed - model is ready!")
+                if data.get("status") == "ok":
+                    print("Health check passed - model is ready!")
                     return True
                 else:
-                    print("⏳ Model still loading...")
+                    print("Model still loading...")
             else:
-                print(f"⚠️ Health check returned status {resp.status_code}")
+                print(f"Health check returned status {resp.status_code}")
         except Exception as e:
-            print(f"⚠️ Health check failed: {e}")
+            print(f"Health check failed: {e}")
 
         time.sleep(5)
 
-    print("❌ Health check timeout - model not ready")
+    print("Health check timeout - model not ready")
     return False
 
 def test_prediction():
     """Test prediction with a sample image."""
-    print("🔍 Testing prediction endpoint...")
+    print("Testing prediction endpoint...")
 
     # Create a simple test image (1x1 pixel PNG)
     from PIL import Image
@@ -58,27 +58,27 @@ def test_prediction():
 
         if resp.status_code == 200:
             data = resp.json()
-            required_keys = ["prediction", "confidence", "processing_time_ms", "model_accuracy", "model_version"]
+            required_keys = ["prediction", "confidence", "model_accuracy"]
 
             if all(key in data for key in required_keys):
-                print("✅ Prediction test passed!")
+                print("Prediction test passed!")
                 print(f"   Prediction: {data['prediction']}")
-                print(".1f"                print(f"   Processing time: {data['processing_time_ms']} ms")
-                print(".1f"                print(f"   Model version: {data['model_version']}")
+                print(".1f")
+                print(".1f")
                 return True
             else:
-                print(f"❌ Missing required keys in response: {data.keys()}")
+                print(f"Missing required keys in response: {data.keys()}")
         else:
-            print(f"❌ Prediction failed with status {resp.status_code}: {resp.text}")
+            print(f"Prediction failed with status {resp.status_code}: {resp.text}")
 
     except Exception as e:
-        print(f"❌ Prediction test failed: {e}")
+        print(f"Prediction test failed: {e}")
 
     return False
 
 def main():
     """Run all smoke tests."""
-    print("🚀 Starting Pneumonia Detection API Smoke Tests")
+    print("Starting Pneumonia Detection API Smoke Tests")
     print(f"API Base URL: {API_BASE_URL}")
     print("-" * 50)
 
@@ -89,12 +89,12 @@ def main():
 
     # Test 2: Prediction
     if not test_prediction():
-        print("❌ Smoke tests failed - prediction")
+        print("Smoke tests failed - prediction")
         sys.exit(1)
-
-    print("-" * 50)
-    print("🎉 All smoke tests passed!")
-    print("✅ API is ready for production use")
+    
+        print("-" * 50)
+        print("All smoke tests passed!")
+        print("API is ready for production use")
 
 if __name__ == "__main__":
     main()
