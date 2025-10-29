@@ -16,6 +16,7 @@ except ImportError:
 
 HF_REPO_ID = "palawakampa/Pneumonia"
 HF_FILENAME = "pneumonia_resnet50v2_fp16.tflite"
+ASSETS_FILENAME = "assets.json"
 
 INTERP = None
 IN_DET = None
@@ -23,7 +24,9 @@ OUT_DET = None
 READY = asyncio.Event()
 MODEL_LOAD_TIME = 0.0
 MODEL_SHA = None
-THRESH = float(os.getenv("PREDICTION_THRESHOLD", "0.311"))
+LABELS = ["Normal", "Pneumonia"]
+THRESH = 0.311
+MODEL_CONFIG = {}
 
 def preprocess(img: Image.Image, size=(224,224)):
     """Preprocess image for ResNet50 model."""
@@ -33,7 +36,7 @@ def preprocess(img: Image.Image, size=(224,224)):
 
 async def boot():
     """Load model asynchronously with optimizations."""
-    global INTERP, IN_DET, OUT_DET, MODEL_LOAD_TIME
+    global INTERP, IN_DET, OUT_DET, MODEL_LOAD_TIME, LABELS, THRESH, MODEL_CONFIG
     start_time = time.time()
 
     if not TFLITE_AVAILABLE:
@@ -44,9 +47,21 @@ async def boot():
         return
 
     try:
-        print("Downloading model from Hugging Face...")
+        print("Downloading model and assets from Hugging Face...")
         model_path = hf_hub_download(repo_id=HF_REPO_ID, filename=HF_FILENAME, cache_dir="/tmp")
+        assets_path = hf_hub_download(repo_id=HF_REPO_ID, filename=ASSETS_FILENAME, cache_dir="/tmp")
+
+        # Load assets.json for dynamic configuration
+        import json
+        with open(assets_path, 'r') as f:
+            MODEL_CONFIG = json.load(f)
+
+        # Update global variables from assets
+        LABELS = MODEL_CONFIG.get("labels", ["Normal", "Pneumonia"])
+        THRESH = MODEL_CONFIG.get("threshold", 0.311)
+
         print(f"Loading TFLite model from {model_path}")
+        print(f"Model config: {MODEL_CONFIG}")
 
         # Optimize TFLite interpreter for performance
         INTERP = tflite.Interpreter(
@@ -66,7 +81,7 @@ async def boot():
             MODEL_SHA = hashlib.sha256(f.read()).hexdigest()[:8]
 
         # Validate tensor shapes
-        expected_input_shape = (1, 224, 224, 3)
+        expected_input_shape = tuple(MODEL_CONFIG.get("input_size", [1, 224, 224, 3]))
         if IN_DET['shape'].tolist() != list(expected_input_shape):
             print(f"Warning: Input shape mismatch. Expected {expected_input_shape}, got {IN_DET['shape'].tolist()}")
 
@@ -119,13 +134,14 @@ def model_meta():
     input_shape = IN_DET['shape'].tolist() if IN_DET else None
 
     return {
-        "labels": ["Normal", "Pneumonia"],
+        "labels": LABELS,
         "output_shape": output_shape,
         "input_shape": input_shape,
-        "preprocess": {"size": [224, 224], "rgb": True, "scale": "x/255.0"},
+        "preprocess": {"size": MODEL_CONFIG.get("input_size", [224, 224, 3])[:2], "rgb": True, "scale": MODEL_CONFIG.get("scale", "x/255.0")},
         "tflite_sha": MODEL_SHA or "unknown",
         "threshold": THRESH,
-        "version": "1.1.0"
+        "model_config": MODEL_CONFIG,
+        "version": "1.2.0"
     }
 
 @app.post("/predict")
@@ -177,35 +193,33 @@ async def predict(file: UploadFile = File(...)):
         if probs.shape == (1, 2):
             # Softmax output: [p_normal, p_pneumonia] or [p_pneumonia, p_normal]
             p0, p1 = float(probs[0][0]), float(probs[0][1])
-            # Assume order: [Normal, Pneumonia] - adjust if needed based on training
-            labels = ["Normal", "Pneumonia"]
             probs_list = [p0, p1]
         elif probs.shape == (1,):
             # Sigmoid output: single probability for pneumonia
             p_pneu = float(probs[0])
             p_norm = 1.0 - p_pneu
-            labels = ["Normal", "Pneumonia"]
             probs_list = [p_norm, p_pneu]
         else:
             raise HTTPException(status_code=500, detail=f"Unexpected model output shape: {probs.shape}")
 
         # Get prediction using threshold
         p_pneu = probs_list[1]  # Always pneumonia probability
-        prediction = "Pneumonia" if p_pneu >= THRESH else "Normal"
+        prediction = LABELS[1] if p_pneu >= THRESH else LABELS[0]
         confidence = max(probs_list)  # Highest probability
 
         # Use fixed model accuracy from evaluation
         dynamic_accuracy = 0.96
 
         return {
-            "labels": labels,
+            "labels": LABELS,
             "probs": probs_list,
             "prediction": prediction,
             "confidence": round(confidence, 4),
             "threshold": THRESH,
-            "preprocess": {"size": [224, 224], "rgb": True, "scale": "x/255.0"},
+            "preprocess": {"size": MODEL_CONFIG.get("input_size", [224, 224, 3])[:2], "rgb": True, "scale": MODEL_CONFIG.get("scale", "x/255.0")},
             "model_sha": MODEL_SHA or "unknown",
             "model_accuracy": round(dynamic_accuracy, 4),
+            "model_config": MODEL_CONFIG,
             "processing_times": {
                 "preprocessing_ms": round(preprocess_time * 1000, 2),
                 "inference_ms": round(inference_time * 1000, 2),
