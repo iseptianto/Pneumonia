@@ -23,67 +23,126 @@ def wait_until_ready(base_url, timeout=120, interval=2):
 
 st.set_page_config(page_title="Pneumonia Prediction Diagnosis", page_icon="🩺", layout="wide")
 
-# Language dictionary
-texts = {
-    "en": {
-        "title": "🩺 Pneumonia Prediction Diagnosis",
-        "description": "Upload an X-ray or CT scan image to predict pneumonia using AI. This app uses a ResNet50 CNN model trained on medical imaging data for accurate diagnosis.",
-        "language": "Language",
-        "input_placeholder": "Upload X-ray or CT scan image",
-        "file_uploader": "📤 Upload image (JPG, PNG, max 10MB)",
-        "predict_button": "🔍 Predict",
-        "prediction_result": "Prediction Result",
-        "connecting_api": "🔗 Connecting to API at:",
-        "diagnosis": "Diagnosis",
-        "accuracy": "Confidence",
-        "model_usage": "Model Usage",
-        "prediction_time": "Prediction Time",
-        "heatmap": "Heatmap",
-        "gradcam": "Grad-CAM",
-        "upload_warning": "⚠️ Please upload an X-ray image first.",
-        "error_request": "❌ Request failed",
-        "preview": "Image Preview",
-        "gradcam_caption": "Grad-CAM Heatmap"
+# Initialize session state
+if "lang" not in st.session_state:
+    st.session_state["lang"] = "EN"
+if "processing_ms" not in st.session_state:
+    st.session_state["processing_ms"] = None
+
+# Simple i18n dictionary
+T = {
+    "EN": {
+        "upload_title": "Upload Medical Image",
+        "analyze": "Analyze Image",
+        "try_another": "Try Another Image",
+        "diag": "Diagnosis",
+        "conf": "Confidence",
+        "ptime": "Processing Time",
+        "complete": "Analysis complete!",
+        "upload_warning": "Please upload a medical image first.",
+        "error_request": "Analysis failed",
+        "preview": "Medical scan preview",
+        "server_not_ready": "Server is not ready. Please try again in a few moments.",
+        "request_failed": "Request failed",
+        "invalid_image": "Please ensure the file is a valid medical image."
     },
-    "id": {
-        "title": "🩺 Diagnosis Prediksi Pneumonia",
-        "description": "Unggah gambar X-ray atau CT scan untuk memprediksi pneumonia menggunakan AI. Aplikasi ini menggunakan model CNN ResNet50 yang dilatih pada data pencitraan medis untuk diagnosis yang akurat.",
-        "language": "Bahasa",
-        "input_placeholder": "Unggah gambar X-ray atau CT scan",
-        "file_uploader": "📤 Unggah gambar (JPG, PNG, maks 10MB)",
-        "predict_button": "🔍 Prediksi",
-        "prediction_result": "Hasil Prediksi",
-        "connecting_api": "🔗 Terhubung ke API di:",
-        "diagnosis": "Diagnosis",
-        "accuracy": "Tingkat Kepercayaan",
-        "model_usage": "Penggunaan Model",
-        "prediction_time": "Waktu Prediksi",
-        "heatmap": "Heatmap",
-        "gradcam": "Grad-CAM",
-        "upload_warning": "⚠️ Silakan unggah gambar X-ray terlebih dahulu.",
-        "error_request": "❌ Permintaan gagal",
-        "preview": "Pratinjau Gambar",
-        "gradcam_caption": "Heatmap Grad-CAM"
+    "ID": {
+        "upload_title": "Unggah Citra Medis",
+        "analyze": "Analisis Gambar",
+        "try_another": "Coba Gambar Lain",
+        "diag": "Diagnosis",
+        "conf": "Kepercayaan",
+        "ptime": "Waktu Proses",
+        "complete": "Analisis selesai!",
+        "upload_warning": "Silakan unggah citra medis terlebih dahulu.",
+        "error_request": "Analisis gagal",
+        "preview": "Pratinjau citra medis",
+        "server_not_ready": "Server belum siap. Silakan coba lagi dalam beberapa saat.",
+        "request_failed": "Permintaan gagal",
+        "invalid_image": "Pastikan file adalah citra medis yang valid."
     }
 }
 
-# Header with left-aligned title and right-aligned controls
-header_col1, header_col2 = st.columns([3, 1])
-with header_col1:
-    st.markdown("# 🩺 Pneumonia Prediction Diagnosis")
-with header_col2:
-    controls_col1, controls_col2, controls_col3 = st.columns(3)
-    with controls_col1:
-        lang = st.selectbox("", ["EN", "ID"], index=0, label_visibility="collapsed")
-    with controls_col2:
-        st.markdown("[📄](https://docs.google.com/document/d/16kKwc9ChYLudeP3MeX18IPlnWezW-DXY9oWYZaVvy84/edit?usp=sharing)", unsafe_allow_html=True)
-    with controls_col3:
-        st.markdown("[📞](https://wa.me/628983776946)", unsafe_allow_html=True)
+# Top bar with responsive layout
+with st.container():
+    col_left, col_right = st.columns([7, 5], vertical_alignment="center")
+    with col_left:
+        st.markdown("### 🩺 **Pneumonia Prediction Diagnosis**")
+        st.caption("Upload an X-ray/CT image to predict pneumonia using our CNN model.")
+    with col_right:
+        # Right-aligned controls in one row
+        r1, r2, r3 = st.columns([2.5, 1, 1])
+        with r1:
+            lang = st.selectbox(" ", ["EN", "ID"], index=0 if st.session_state["lang"] == "EN" else 1,
+                               label_visibility="collapsed", key="lang_select")
+            st.session_state["lang"] = lang
+        with r2:
+            docs_url = st.secrets.get("DOCS_URL", "https://docs.google.com/document/d/16kKwc9ChYLudeP3MeX18IPlnWezW-DXY9oWYZaVvy84/edit?usp=sharing")
+            st.link_button("📄", url=docs_url, help="Open API Docs", use_container_width=True)
+        with r3:
+            contact_url = st.secrets.get("CONTACT_URL", "mailto:hello@palawakampa.com?subject=Pneumonia%20App")
+            st.link_button("✉️", url=contact_url, help="Contact", use_container_width=True)
 
-lang_key = "en" if lang == "EN" else "id"
-t = texts[lang_key]
+# Get current language texts
+t = T[st.session_state["lang"]]
 
-st.markdown("*Upload an X-ray or CT scan image to predict pneumonia using AI. This app uses a ResNet50 CNN model trained on medical imaging data for accurate diagnosis.*")
+# Custom CSS for better button styling
+st.markdown("""
+<style>
+button[kind="link"] { padding-top: 0.35rem; padding-bottom: 0.35rem; }
+</style>
+""", unsafe_allow_html=True)
+
+# Main content layout
+upload_col, result_col = st.columns([1.2, 1])
+
+with upload_col:
+    st.markdown(f"### 📤 {t['upload_title']}")
+    st.markdown("*Supported formats: JPG, PNG, JPEG (max 10MB)*")
+    uploaded = st.file_uploader("", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
+    st.write("---")
+
+    # Progress bar placeholder
+    progress_bar = st.empty()
+    progress_text = st.empty()
+
+    # Analyze button
+    analyze_disabled = uploaded is None
+    go = st.button(t['analyze'], type="primary", use_container_width=True, disabled=analyze_disabled)
+
+    # Try another image button (shown after analysis)
+    try_again = st.button(t['try_another'], type="secondary", use_container_width=True)
+    if try_again:
+        # Reset session state
+        st.session_state["processing_ms"] = None
+        st.rerun()
+
+with result_col:
+    st.markdown("### 📊 Analysis Results")
+
+    # Diagnosis result with styled box
+    st.markdown('<div class="result-box">', unsafe_allow_html=True)
+    st.markdown(f"**🏥 {t['diag']}**")
+    diag_text = st.empty()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Confidence with styled box
+    st.markdown('<div class="result-box">', unsafe_allow_html=True)
+    st.markdown(f"**⚡ {t['conf']}**")
+    conf_text = st.empty()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Processing time with styled box
+    st.markdown('<div class="result-box">', unsafe_allow_html=True)
+    st.markdown(f"**⏱️ {t['ptime']}**")
+    time_text = st.empty()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Model accuracy with styled box
+    st.markdown('<div class="result-box">', unsafe_allow_html=True)
+    st.markdown("**🎯 Model Accuracy**")
+    acc_text = st.empty()
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # Add custom CSS for medical blue theme and drag-drop styling
 st.markdown("""
@@ -141,71 +200,10 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("---")
-
-# Main content layout
-upload_col, result_col = st.columns([1.2, 1])
-
-with upload_col:
-    st.markdown("### 📤 Upload Medical Image")
-    st.markdown("*Supported formats: JPG, PNG, JPEG (max 10MB)*")
-    uploaded = st.file_uploader("", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
-    st.write("---")
-
-    # Progress bar placeholder
-    progress_bar = st.empty()
-    progress_text = st.empty()
-
-    go = st.button("🔍 Analyze Image", type="primary", use_container_width=True)
-
-    # Try another image button (shown after analysis)
-    try_again = st.button("🔄 Try Another Image", type="secondary", use_container_width=True)
-    if try_again:
-        st.rerun()
-
-with result_col:
-    st.markdown("### 📊 Analysis Results")
-
-    # Diagnosis result with styled box
-    st.markdown('<div class="result-box">', unsafe_allow_html=True)
-    st.markdown("**🏥 Diagnosis**")
-    diag_text = st.empty()
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # Confidence with styled box
-    st.markdown('<div class="result-box">', unsafe_allow_html=True)
-    st.markdown("**⚡ Confidence**")
-    conf_text = st.empty()
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # Processing time with styled box
-    st.markdown('<div class="result-box">', unsafe_allow_html=True)
-    st.markdown("**⏱️ Processing Time**")
-    time_text = st.empty()
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # Model accuracy with styled box
-    st.markdown('<div class="result-box">', unsafe_allow_html=True)
-    st.markdown("**🎯 Model Accuracy**")
-    acc_text = st.empty()
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    st.markdown("---")
-
-    # Visualization section
-    st.markdown("### 🔍 AI Analysis Visualization")
-    viz_col1, viz_col2 = st.columns(2)
-    with viz_col1:
-        st.markdown("**🔥 Heatmap**")
-        heatmap_placeholder = st.empty()
-    with viz_col2:
-        st.markdown("**🧠 Grad-CAM**")
-        gradcam_placeholder = st.empty()
-
 # --- Predict action ---
 if go:
     if uploaded is None:
-        st.warning("⚠️ Please upload a medical image first.")
+        st.warning(f"⚠️ {t['upload_warning']}")
     else:
         try:
             # Handle Streamlit UploadedFile - seek to beginning first
@@ -215,12 +213,12 @@ if go:
             # Show uploaded image in upload section
             with upload_col:
                 st.markdown("### 🖼️ Uploaded Image")
-                st.image(img, caption="Medical scan preview", use_column_width=True)
+                st.image(img, caption=t['preview'], use_column_width=True)
 
             # Check if backend is ready
             with st.spinner("🔄 Warming up server & loading model..."):
                 if not wait_until_ready(FASTAPI_URL):
-                    st.error("❌ Server is not ready. Please try again in a few moments.")
+                    st.error(f"❌ {t['server_not_ready']}")
                     st.stop()
 
             # Initialize progress
@@ -239,7 +237,8 @@ if go:
                 progress_bar.progress(50)
                 progress_text.text("Sending to AI model...")
 
-                t0 = time.time()
+                # Start timing
+                start = time.perf_counter()
 
                 # Try prediction with exponential backoff for 503 errors
                 max_retries = 5
@@ -256,34 +255,49 @@ if go:
                         if attempt == max_retries - 1:
                             raise e
 
-                dt = (time.time() - t0) * 1000
+                # Calculate elapsed time
+                elapsed = time.perf_counter() - start
+                st.session_state["processing_ms"] = int(elapsed * 1000)
+
                 progress_bar.progress(75)
                 progress_text.text("Processing results...")
 
             if not resp.ok:
                 progress_bar.progress(0)
                 progress_text.text("")
-                st.error(f"❌ Analysis failed: {resp.status_code} - {resp.text}")
+                st.error(f"❌ {t['error_request']}: {resp.status_code} - {resp.text}")
             else:
                 data = resp.json()
                 pred = data["prediction"]
                 prob = float(data["confidence"])
 
                 progress_bar.progress(100)
-                progress_text.text("Analysis complete!")
+                progress_text.text(t['complete'])
 
                 # Update results with styled boxes
                 diag_class = "diagnosis-normal" if pred == "Normal" else "diagnosis-pneumonia"
                 diag_text.markdown(f'<span class="{diag_class}">### {pred}</span>', unsafe_allow_html=True)
                 conf_text.markdown(f'<span class="metric-value">### {prob*100:,.1f}%</span>', unsafe_allow_html=True)
-                time_text.markdown("### N/A")  # No time returned from simplified API
+
+                # Display processing time
+                ms = st.session_state.get("processing_ms")
+                if ms is not None:
+                    time_text.markdown(f'<span class="metric-value">### {ms} ms ({ms/1000:.2f} s)</span>', unsafe_allow_html=True)
+                else:
+                    time_text.markdown("### N/A")
+
                 acc_text.markdown("### 96.0%")  # Fixed model accuracy
 
                 # Success message with emoji based on result
                 emoji = "🟢" if pred == "Normal" else "🔴"
-                st.success(f"{emoji} **Analysis Complete!** Diagnosis: **{pred}** with **{prob*100:,.1f}%** confidence")
+                st.success(f"{emoji} **{t['complete']}** Diagnosis: **{pred}** with **{prob*100:,.1f}%** confidence")
 
         except Exception as e:
+            # Calculate elapsed time even on error
+            if 'start' in locals():
+                elapsed = time.perf_counter() - start
+                st.session_state["processing_ms"] = int(elapsed * 1000)
+
             progress_bar.progress(0)
             progress_text.text("")
-            st.error(f"❌ Error processing image: {str(e)}. Please ensure the file is a valid medical image.")
+            st.error(f"❌ {t['request_failed']}: {str(e)}. {t['invalid_image']}")
