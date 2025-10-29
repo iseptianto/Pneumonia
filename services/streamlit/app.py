@@ -210,10 +210,113 @@ if go:
             uploaded.seek(0)
             img = Image.open(uploaded).convert("RGB")
 
-            # Show uploaded image in upload section
+            # Show uploaded image in upload section with zoom functionality
             with upload_col:
                 st.markdown("### 🖼️ Uploaded Image")
-                st.image(img, caption=t['preview'], use_column_width=True)
+
+                # Create columns for image and zoom controls
+                img_col, zoom_col = st.columns([4, 1])
+
+                with img_col:
+                    # Display image with zoom overlay
+                    st.image(img, caption=t['preview'], use_column_width=True)
+
+                    # Zoom overlay (positioned over image)
+                    zoom_overlay = st.container()
+                    with zoom_overlay:
+                        st.markdown("""
+                        <style>
+                        .zoom-controls {
+                            position: absolute;
+                            top: 10px;
+                            right: 10px;
+                            background: rgba(255,255,255,0.9);
+                            border-radius: 8px;
+                            padding: 8px;
+                            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+                            z-index: 1000;
+                        }
+                        .zoom-btn {
+                            background: #2196f3;
+                            color: white;
+                            border: none;
+                            border-radius: 4px;
+                            padding: 4px 8px;
+                            margin: 2px;
+                            cursor: pointer;
+                            font-size: 14px;
+                        }
+                        .zoom-btn:hover {
+                            background: #1976d2;
+                        }
+                        </style>
+                        <div class="zoom-controls">
+                            <button class="zoom-btn" onclick="zoomIn()">🔍+</button>
+                            <button class="zoom-btn" onclick="zoomOut()">🔍-</button>
+                        </div>
+                        <script>
+                        function zoomIn() {
+                            const img = document.querySelector('img[alt*="preview"]');
+                            if (img) {
+                                const currentScale = img.style.transform ? parseFloat(img.style.transform.replace('scale(', '').replace(')', '')) : 1;
+                                const newScale = Math.min(currentScale * 1.2, 3);
+                                img.style.transform = `scale(${newScale})`;
+                                img.style.transformOrigin = 'center center';
+                            }
+                        }
+                        function zoomOut() {
+                            const img = document.querySelector('img[alt*="preview"]');
+                            if (img) {
+                                const currentScale = img.style.transform ? parseFloat(img.style.transform.replace('scale(', '').replace(')', '')) : 1;
+                                const newScale = Math.max(currentScale / 1.2, 0.5);
+                                img.style.transform = `scale(${newScale})`;
+                                img.style.transformOrigin = 'center center';
+                            }
+                        }
+                        </script>
+                        """, unsafe_allow_html=True)
+
+                with zoom_col:
+                    st.markdown("**Zoom**")
+                    zoom_in = st.button("🔍+", key="zoom_in", help="Zoom in")
+                    zoom_out = st.button("🔍-", key="zoom_out", help="Zoom out")
+                    reset_zoom = st.button("🔄", key="reset_zoom", help="Reset zoom")
+
+                    if zoom_in:
+                        st.markdown("""
+                        <script>
+                        const img = document.querySelector('img[alt*="preview"]');
+                        if (img) {
+                            const currentScale = img.style.transform ? parseFloat(img.style.transform.replace('scale(', '').replace(')', '')) : 1;
+                            const newScale = Math.min(currentScale * 1.2, 3);
+                            img.style.transform = `scale(${newScale})`;
+                            img.style.transformOrigin = 'center center';
+                        }
+                        </script>
+                        """, unsafe_allow_html=True)
+
+                    if zoom_out:
+                        st.markdown("""
+                        <script>
+                        const img = document.querySelector('img[alt*="preview"]');
+                        if (img) {
+                            const currentScale = img.style.transform ? parseFloat(img.style.transform.replace('scale(', '').replace(')', '')) : 1;
+                            const newScale = Math.max(currentScale / 1.2, 0.5);
+                            img.style.transform = `scale(${newScale})`;
+                            img.style.transformOrigin = 'center center';
+                        }
+                        </script>
+                        """, unsafe_allow_html=True)
+
+                    if reset_zoom:
+                        st.markdown("""
+                        <script>
+                        const img = document.querySelector('img[alt*="preview"]');
+                        if (img) {
+                            img.style.transform = 'scale(1)';
+                        }
+                        </script>
+                        """, unsafe_allow_html=True)
 
             # Check if backend is ready
             with st.spinner("🔄 Warming up server & loading model..."):
