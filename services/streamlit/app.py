@@ -221,7 +221,7 @@ if go:
             with st.spinner("🔄 Warming up server & loading model..."):
                 if not wait_until_ready(FASTAPI_URL):
                     st.error("❌ Server is not ready. Please try again in a few moments.")
-                    return
+                    st.stop()
 
             # Initialize progress
             progress_bar.progress(0)
