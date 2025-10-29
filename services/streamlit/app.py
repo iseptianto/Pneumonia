@@ -28,6 +28,12 @@ if "lang" not in st.session_state:
     st.session_state["lang"] = "EN"
 if "processing_ms" not in st.session_state:
     st.session_state["processing_ms"] = None
+if "zoom_ratio" not in st.session_state:
+    st.session_state["zoom_ratio"] = 1.0  # Single source of truth for zoom
+if "uploaded_file" not in st.session_state:
+    st.session_state["uploaded_file"] = None
+if "prediction_result" not in st.session_state:
+    st.session_state["prediction_result"] = None
 
 # Simple i18n dictionary
 T = {
@@ -123,46 +129,78 @@ with upload_col:
     analyze_disabled = uploaded is None
     go = st.button(t['analyze'], type="primary", use_container_width=True, disabled=analyze_disabled)
 
-    # Quick Test button
-    quick_test = st.button("Run Quick Test", type="secondary", use_container_width=True)
-
     # Try another image button (shown after analysis)
     try_again = st.button(t['try_another'], type="secondary", use_container_width=True)
     if try_again:
-        # Reset session state
-        st.session_state["processing_ms"] = None
+        # Full reset of session state
+        for key in ["processing_ms", "zoom_ratio", "uploaded_file", "prediction_result"]:
+            st.session_state.pop(key, None)
+        st.session_state["zoom_ratio"] = 1.0  # Reset to default
+        # Scroll to top
+        st.markdown('<script>window.scrollTo(0, 0);</script>', unsafe_allow_html=True)
         st.rerun()
 
 with result_col:
     st.markdown("### 📊 Analysis Results")
 
-    # Diagnosis result with styled box
-    st.markdown('<div class="result-box">', unsafe_allow_html=True)
+    # Diagnosis result
     st.markdown(f"**🏥 {t['diag']}**")
     diag_text = st.empty()
-    diag_text.markdown("### -")  # Default empty
-    st.markdown('</div>', unsafe_allow_html=True)
+    if st.session_state.get("prediction_result"):
+        pred = st.session_state["prediction_result"]["prediction"]
+        diag_class = "diagnosis-normal" if pred == "Normal" else "diagnosis-pneumonia"
+        diag_text.markdown(f'<span class="{diag_class}">### {pred}</span>', unsafe_allow_html=True)
+    else:
+        diag_text.markdown("### -")  # Default empty
 
-    # Confidence with styled box
-    st.markdown('<div class="result-box">', unsafe_allow_html=True)
+    # Confidence
     st.markdown(f"**⚡ {t['conf']}**")
     conf_text = st.empty()
-    conf_text.markdown("### -")  # Default empty
-    st.markdown('</div>', unsafe_allow_html=True)
+    if st.session_state.get("prediction_result"):
+        prob = float(st.session_state["prediction_result"]["confidence"])
+        conf_text.markdown(f'<span class="metric-value">### {prob*100:,.1f}%</span>', unsafe_allow_html=True)
+    else:
+        conf_text.markdown("### -")  # Default empty
 
-    # Processing time with styled box
-    st.markdown('<div class="result-box">', unsafe_allow_html=True)
+    # Processing time
     st.markdown(f"**⏱️ {t['ptime']}**")
     time_text = st.empty()
-    time_text.markdown("### -")  # Default empty
-    st.markdown('</div>', unsafe_allow_html=True)
+    if st.session_state.get("prediction_result"):
+        processing_times = st.session_state["prediction_result"].get("processing_times", {})
+        total_ms = processing_times.get("total_ms", st.session_state.get("processing_ms"))
+        if total_ms is not None:
+            time_text.markdown(f'<span class="metric-value">### {total_ms:.0f} ms ({total_ms/1000:.2f} s)</span>', unsafe_allow_html=True)
+        else:
+            time_text.markdown("### N/A")
+    else:
+        time_text.markdown("### -")  # Default empty
 
-    # Model accuracy with styled box
-    st.markdown('<div class="result-box">', unsafe_allow_html=True)
+    # Model accuracy
     st.markdown("**🎯 Model Accuracy**")
     acc_text = st.empty()
-    acc_text.markdown("### -")  # Default empty
-    st.markdown('</div>', unsafe_allow_html=True)
+    if st.session_state.get("prediction_result"):
+        model_acc = st.session_state["prediction_result"].get("model_accuracy", 0.85)
+        acc_text.markdown(f'<span class="metric-value">### {model_acc*100:,.1f}%</span>', unsafe_allow_html=True)
+    else:
+        acc_text.markdown("### -")  # Default empty
+
+    # Probability bar chart (only show if we have results)
+    if st.session_state.get("prediction_result"):
+        st.markdown("### 📊 Probability Distribution")
+        labels = st.session_state["prediction_result"].get("labels", ["Normal", "Pneumonia"])
+        probs = st.session_state["prediction_result"].get("probs", [0.5, 0.5])
+        prob_data = {labels[i]: probs[i] for i in range(len(labels))}
+        st.bar_chart(prob_data)
+
+        # Low confidence warning
+        prob = float(st.session_state["prediction_result"]["confidence"])
+        if prob < 0.6:
+            st.warning("⚠️ Low confidence prediction. Consider professional medical consultation.")
+
+        # Success message
+        pred = st.session_state["prediction_result"]["prediction"]
+        emoji = "🟢" if pred == "Normal" else "🔴"
+        st.success(f"{emoji} **{t['complete']}** Diagnosis: **{pred}** with **{prob*100:,.1f}%** confidence")
 
 # Add custom CSS for medical blue theme and drag-drop styling
 st.markdown("""
@@ -183,12 +221,8 @@ st.markdown("""
         border-color: #1976d2;
         background: #f8f9fa;
     }
-    .result-box {
-        background: #ffffff;
-        border-radius: 10px;
-        padding: 20px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        margin: 10px 0;
+    .result-section {
+        margin: 15px 0;
     }
     .diagnosis-normal {
         color: #4caf50;
@@ -220,78 +254,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- Quick Test action ---
-if quick_test:
-    st.markdown("### 🧪 Quick Test Results")
-    import os
-    sample_dir = "sample_images"
-    if os.path.exists(sample_dir):
-        sample_files = [f for f in os.listdir(sample_dir) if f.endswith(('.png', '.jpg', '.jpeg'))]
-        if len(sample_files) >= 4:
-            test_results = []
-            correct_count = 0
-            
-            for sample_file in sample_files:
-                # Determine expected label
-                expected = "Pneumonia" if "pneumonia" in sample_file.lower() else "Normal"
-
-                # Load and predict using API
-                img_path = os.path.join(sample_dir, sample_file)
-                with open(img_path, "rb") as f:
-                    files = {"file": (sample_file, f, "image/png")}
-                    try:
-                        resp = requests.post(FASTAPI_URL, files=files, timeout=30)
-                        if resp.ok:
-                            api_data = resp.json()
-                            pred = api_data["prediction"]
-                            prob = api_data["confidence"]
-                            labels = api_data["labels"]
-                            probs = api_data["probs"]
-                        else:
-                            # Fallback to dummy if API fails
-                            pred = "Pneumonia" if np.random.random() > 0.4 else "Normal"
-                            prob = np.random.uniform(0.6, 0.95)
-                            labels = ["Normal", "Pneumonia"]
-                            if pred == "Pneumonia":
-                                probs = [1 - prob, prob]
-                            else:
-                                probs = [prob, 1 - prob]
-                    except:
-                        # Fallback to dummy if API fails
-                        pred = "Pneumonia" if np.random.random() > 0.4 else "Normal"
-                        prob = np.random.uniform(0.6, 0.95)
-                        labels = ["Normal", "Pneumonia"]
-                        if pred == "Pneumonia":
-                            probs = [1 - prob, prob]
-                        else:
-                            probs = [prob, 1 - prob]
-
-                is_correct = (pred == expected)
-                if is_correct:
-                    correct_count += 1
-
-                test_results.append({
-                    "File": sample_file,
-                    "Expected": expected,
-                    "Predicted": pred,
-                    "Confidence": f"{prob:.2f}",
-                    "Correct": "✅" if is_correct else "❌"
-                })
-            
-            # Display table
-            import pandas as pd
-            df = pd.DataFrame(test_results)
-            st.dataframe(df, use_container_width=True)
-            
-            # Assertion
-            if correct_count >= 3:
-                st.success(f"✅ Test passed: {correct_count}/4 predictions correct")
-            else:
-                st.error(f"❌ Test failed: Only {correct_count}/4 predictions correct")
-        else:
-            st.error("❌ Need at least 4 sample images for quick test")
-    else:
-        st.error("❌ Sample images directory not found")
 
 # --- Predict action ---
 if go:
@@ -299,6 +261,9 @@ if go:
         st.warning(f"⚠️ {t['upload_warning']}")
     else:
         try:
+            # Store uploaded file in session state
+            st.session_state["uploaded_file"] = uploaded
+
             # Handle Streamlit UploadedFile - seek to beginning first
             uploaded.seek(0)
             img = Image.open(uploaded).convert("RGB")
@@ -307,109 +272,32 @@ if go:
             with upload_col:
                 st.markdown("### 🖼️ Uploaded Image")
 
-                # Create columns for image and zoom controls
-                img_col, zoom_col = st.columns([4, 1])
+                # Image container (no nested columns)
+                img_container = st.container()
+                with img_container:
+                    zoom_ratio = st.session_state.get("zoom_ratio", 1.0)
+                    st.image(img, caption=t['preview'], use_column_width=True,
+                            width=int(img.width * zoom_ratio) if zoom_ratio != 1.0 else None)
 
-                with img_col:
-                    # Display image with zoom overlay
-                    st.image(img, caption=t['preview'], use_column_width=True)
-
-                    # Zoom overlay (positioned over image)
-                    zoom_overlay = st.container()
-                    with zoom_overlay:
-                        st.markdown("""
-                        <style>
-                        .zoom-controls {
-                            position: absolute;
-                            top: 10px;
-                            right: 10px;
-                            background: rgba(255,255,255,0.9);
-                            border-radius: 8px;
-                            padding: 8px;
-                            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-                            z-index: 1000;
-                        }
-                        .zoom-btn {
-                            background: #2196f3;
-                            color: white;
-                            border: none;
-                            border-radius: 4px;
-                            padding: 4px 8px;
-                            margin: 2px;
-                            cursor: pointer;
-                            font-size: 14px;
-                        }
-                        .zoom-btn:hover {
-                            background: #1976d2;
-                        }
-                        </style>
-                        <div class="zoom-controls">
-                            <button class="zoom-btn" onclick="zoomIn()">🔍+</button>
-                            <button class="zoom-btn" onclick="zoomOut()">🔍-</button>
-                        </div>
-                        <script>
-                        function zoomIn() {
-                            const img = document.querySelector('img[alt*="preview"]');
-                            if (img) {
-                                const currentScale = img.style.transform ? parseFloat(img.style.transform.replace('scale(', '').replace(')', '')) : 1;
-                                const newScale = Math.min(currentScale * 1.2, 3);
-                                img.style.transform = `scale(${newScale})`;
-                                img.style.transformOrigin = 'center center';
-                            }
-                        }
-                        function zoomOut() {
-                            const img = document.querySelector('img[alt*="preview"]');
-                            if (img) {
-                                const currentScale = img.style.transform ? parseFloat(img.style.transform.replace('scale(', '').replace(')', '')) : 1;
-                                const newScale = Math.max(currentScale / 1.2, 0.5);
-                                img.style.transform = `scale(${newScale})`;
-                                img.style.transformOrigin = 'center center';
-                            }
-                        }
-                        </script>
-                        """, unsafe_allow_html=True)
-
-                with zoom_col:
-                    st.markdown("**Zoom**")
-                    zoom_in = st.button("🔍+", key="zoom_in", help="Zoom in")
-                    zoom_out = st.button("🔍-", key="zoom_out", help="Zoom out")
-                    reset_zoom = st.button("🔄", key="reset_zoom", help="Reset zoom")
-
-                    if zoom_in:
-                        st.markdown("""
-                        <script>
-                        const img = document.querySelector('img[alt*="preview"]');
-                        if (img) {
-                            const currentScale = img.style.transform ? parseFloat(img.style.transform.replace('scale(', '').replace(')', '')) : 1;
-                            const newScale = Math.min(currentScale * 1.2, 3);
-                            img.style.transform = `scale(${newScale})`;
-                            img.style.transformOrigin = 'center center';
-                        }
-                        </script>
-                        """, unsafe_allow_html=True)
-
-                    if zoom_out:
-                        st.markdown("""
-                        <script>
-                        const img = document.querySelector('img[alt*="preview"]');
-                        if (img) {
-                            const currentScale = img.style.transform ? parseFloat(img.style.transform.replace('scale(', '').replace(')', '')) : 1;
-                            const newScale = Math.max(currentScale / 1.2, 0.5);
-                            img.style.transform = `scale(${newScale})`;
-                            img.style.transformOrigin = 'center center';
-                        }
-                        </script>
-                        """, unsafe_allow_html=True)
-
-                    if reset_zoom:
-                        st.markdown("""
-                        <script>
-                        const img = document.querySelector('img[alt*="preview"]');
-                        if (img) {
-                            img.style.transform = 'scale(1)';
-                        }
-                        </script>
-                        """, unsafe_allow_html=True)
+                # Zoom controls container (no nested columns)
+                zoom_container = st.container()
+                with zoom_container:
+                    st.write("Zoom")
+                    z = st.session_state["zoom_ratio"]
+                    col1, col2, col3 = st.columns([1, 1, 1])  # This is the only nested columns in the app
+                    with col1:
+                        if st.button("＋", key="zoom_plus"):
+                            st.session_state["zoom_ratio"] = min(3.0, z + 0.1)
+                            st.rerun()
+                    with col2:
+                        if st.button("－", key="zoom_minus"):
+                            st.session_state["zoom_ratio"] = max(0.5, z - 0.1)
+                            st.rerun()
+                    with col3:
+                        if st.button("🔄", key="zoom_reset"):
+                            st.session_state["zoom_ratio"] = 1.0
+                            st.rerun()
+                    st.caption(f"Zoom: {int(st.session_state['zoom_ratio']*100)}%")
 
             # Initialize progress
             progress_bar.progress(0)
@@ -474,37 +362,14 @@ if go:
                 probs = data.get("probs", [0.5, 0.5])
                 model_acc = data.get("model_accuracy", 0.85)
 
+                # Store prediction result in session state
+                st.session_state["prediction_result"] = data
+
                 progress_bar.progress(100)
                 progress_text.text(t['complete'])
 
-                # Update results with styled boxes
-                diag_class = "diagnosis-normal" if pred == "Normal" else "diagnosis-pneumonia"
-                diag_text.markdown(f'<span class="{diag_class}">### {pred}</span>', unsafe_allow_html=True)
-                conf_text.markdown(f'<span class="metric-value">### {prob*100:,.1f}%</span>', unsafe_allow_html=True)
-
-                # Display processing time from API response
-                processing_times = data.get("processing_times", {})
-                total_ms = processing_times.get("total_ms", st.session_state.get("processing_ms"))
-                if total_ms is not None:
-                    time_text.markdown(f'<span class="metric-value">### {total_ms:.0f} ms ({total_ms/1000:.2f} s)</span>', unsafe_allow_html=True)
-                else:
-                    time_text.markdown("### N/A")
-
-                # Display dynamic model accuracy
-                acc_text.markdown(f'<span class="metric-value">### {model_acc*100:,.1f}%</span>', unsafe_allow_html=True)
-
-                # Add probability bar chart
-                st.markdown("### 📊 Probability Distribution")
-                prob_data = {labels[i]: probs[i] for i in range(len(labels))}
-                st.bar_chart(prob_data)
-
-                # Low confidence warning
-                if prob < 0.6:
-                    st.warning("⚠️ Low confidence prediction. Consider professional medical consultation.")
-
-                # Success message with emoji based on result
-                emoji = "🟢" if pred == "Normal" else "🔴"
-                st.success(f"{emoji} **{t['complete']}** Diagnosis: **{pred}** with **{prob*100:,.1f}%** confidence")
+                # Trigger UI update by rerunning
+                st.rerun()
 
         except Exception as e:
             # Calculate elapsed time even on error
