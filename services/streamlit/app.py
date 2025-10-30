@@ -43,7 +43,7 @@ if "prediction_result" not in st.session_state:
 
 # Simple i18n dictionary
 T = {
-    "EN [English]": {
+    "EN": {
         "upload_title": "Upload Medical Image",
         "analyze": "Analyze Image",
         "try_another": "Try Another Image",
@@ -58,7 +58,7 @@ T = {
         "request_failed": "Request failed",
         "invalid_image": "Please ensure the file is a valid medical image."
     },
-    "ID [Indonesia]": {
+    "ID": {
         "upload_title": "Unggah Citra Medis",
         "analyze": "Analisis Gambar",
         "try_another": "Coba Gambar Lain",
