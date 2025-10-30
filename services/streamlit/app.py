@@ -43,7 +43,7 @@ if "prediction_result" not in st.session_state:
 
 # Simple i18n dictionary
 T = {
-    "EN": {
+    "EN [English]": {
         "upload_title": "Upload Medical Image",
         "analyze": "Analyze Image",
         "try_another": "Try Another Image",
@@ -58,7 +58,7 @@ T = {
         "request_failed": "Request failed",
         "invalid_image": "Please ensure the file is a valid medical image."
     },
-    "ID": {
+    "ID [Indonesia]": {
         "upload_title": "Unggah Citra Medis",
         "analyze": "Analisis Gambar",
         "try_another": "Coba Gambar Lain",
@@ -85,7 +85,7 @@ with st.container():
         # Right-aligned controls in one row
         r1, r2, r3 = st.columns([2.5, 1, 1])
         with r1:
-            lang = st.selectbox(" ", ["EN", "ID"], index=0 if st.session_state["lang"] == "EN" else 1,
+            lang = st.selectbox(" ", ["EN [English]", "ID [Indonesia]"], index=0 if st.session_state["lang"] == "EN [English]" else 1,
                                label_visibility="collapsed", key="lang_select")
             st.session_state["lang"] = lang
         with r2:
