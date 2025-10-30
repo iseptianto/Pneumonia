@@ -9,10 +9,13 @@ def get_config(key: str, default: Optional[str] = None):
     # 2) st.secrets kalau ada, tapi jangan crash kalau file tidak ada
     try:
         import streamlit as st
-        # st.secrets akan melempar FileNotFoundError saat diparse jika file tak ada
-        _ = st.secrets  # trigger lazy load
-        if key in st.secrets:
-            return st.secrets[key]
+        # Cek apakah secrets file ada dengan cara yang lebih aman
+        if hasattr(st, 'secrets') and st.secrets is not None:
+            # Coba akses key secara spesifik tanpa trigger parsing seluruh file
+            try:
+                return st.secrets[key]
+            except (KeyError, FileNotFoundError):
+                pass
     except Exception:
         pass
     # 3) fallback
@@ -21,7 +24,18 @@ def get_config(key: str, default: Optional[str] = None):
 def has_secrets_file() -> bool:
     try:
         import streamlit as st
-        _ = st.secrets
-        return True
+        # Cek dengan cara yang lebih aman
+        if hasattr(st, 'secrets') and st.secrets is not None:
+            # Coba akses dummy key untuk trigger parsing
+            try:
+                _ = st.secrets['_dummy_check_']
+            except KeyError:
+                # KeyError berarti file ada tapi key tidak ada - ini normal
+                return True
+            except FileNotFoundError:
+                return False
+            # Jika berhasil akses dummy key, berarti ada file
+            return True
+        return False
     except Exception:
         return False
