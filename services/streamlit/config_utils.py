@@ -1,24 +1,25 @@
 import os
 from typing import Optional, List
 
-def get_config(key: str, default: Optional[str] = None) -> Optional[str]:
-    """Get config value with priority: ENV -> st.secrets -> default"""
-    # 1) ENV first
+def _from_env(key: str) -> Optional[str]:
     val = os.getenv(key)
-    if val is not None:
-        return val
-    # 2) st.secrets if available (no crash if secrets.toml missing)
+    return None if val is None else str(val)
+
+def _from_secrets(key: str) -> Optional[str]:
     try:
-        import streamlit as st
-        if hasattr(st, 'secrets') and st.secrets is not None:
-            try:
-                return st.secrets[key]
-            except (KeyError, FileNotFoundError):
-                pass
+        import streamlit as st  # type: ignore
+        obj = st.secrets  # may raise internally; that's why we're in try
+        if isinstance(obj, dict) and key in obj:
+            return str(obj[key])
+        return None
     except Exception:
-        pass
-    # 3) fallback
-    return default
+        return None
+
+def _pick_value(key: str, default: Optional[str]) -> Optional[str]:
+    return _from_env(key) or _from_secrets(key) or default
+
+def get_config(key: str, default: Optional[str] = None) -> Optional[str]:
+    return _pick_value(key, default)
 
 def get_bool(key: str, default: bool = False) -> bool:
     """Get boolean config value. Accepts: true/false, 1/0, yes/no, y/n, on/off (case-insensitive)"""

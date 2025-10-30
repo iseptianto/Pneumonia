@@ -36,8 +36,6 @@ if "lang" not in st.session_state:
     st.session_state["lang"] = "EN"
 if "processing_ms" not in st.session_state:
     st.session_state["processing_ms"] = None
-if "zoom_ratio" not in st.session_state:
-    st.session_state["zoom_ratio"] = 1.0  # Single source of truth for zoom
 if "uploaded_file" not in st.session_state:
     st.session_state["uploaded_file"] = None
 if "prediction_result" not in st.session_state:
@@ -110,8 +108,8 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Check for secrets file and show non-blocking warning
-if not has_secrets_file():
+# Optional debug banner (only show if SHOW_CONFIG_BANNER=true)
+if get_bool("SHOW_CONFIG_BANNER", False):
     st.caption("⚙️ Running with environment variables (no `secrets.toml` found).")
 
 # Get current language texts
@@ -144,10 +142,9 @@ with upload_col:
     # Try another image button (shown after analysis)
     try_again = st.button(t['try_another'], type="secondary", use_container_width=True)
     if try_again:
-        # Full reset of session state
-        for key in ["processing_ms", "zoom_ratio", "uploaded_file", "prediction_result"]:
+        # Full reset of session state (removed zoom_ratio since zoom controls are gone)
+        for key in ["processing_ms", "uploaded_file", "prediction_result"]:
             st.session_state.pop(key, None)
-        st.session_state["zoom_ratio"] = 1.0  # Reset to default
         # Scroll to top
         st.markdown('<script>window.scrollTo(0, 0);</script>', unsafe_allow_html=True)
         st.rerun()
@@ -284,32 +281,11 @@ if go:
             with upload_col:
                 st.markdown("### 🖼️ Uploaded Image")
 
-                # Image container (no nested columns)
-                img_container = st.container()
-                with img_container:
-                    zoom_ratio = st.session_state.get("zoom_ratio", 1.0)
-                    st.image(img, caption=t['preview'], use_column_width=True,
-                            width=int(img.width * zoom_ratio) if zoom_ratio != 1.0 else None)
+                # Simple image preview
+                st.image(img, caption=t['preview'], use_column_width=True)
 
-                # Zoom controls container (no nested columns)
-                zoom_container = st.container()
-                with zoom_container:
-                    st.write("Zoom")
-                    z = st.session_state["zoom_ratio"]
-                    col1, col2, col3 = st.columns([1, 1, 1])  # This is the only nested columns in the app
-                    with col1:
-                        if st.button("＋", key="zoom_plus"):
-                            st.session_state["zoom_ratio"] = min(3.0, z + 0.1)
-                            st.rerun()
-                    with col2:
-                        if st.button("－", key="zoom_minus"):
-                            st.session_state["zoom_ratio"] = max(0.5, z - 0.1)
-                            st.rerun()
-                    with col3:
-                        if st.button("🔄", key="zoom_reset"):
-                            st.session_state["zoom_ratio"] = 1.0
-                            st.rerun()
-                    st.caption(f"Zoom: {int(st.session_state['zoom_ratio']*100)}%")
+                # Simple image preview without zoom controls
+                st.image(img, caption=t['preview'], use_column_width=True)
 
             # Initialize progress
             progress_bar.progress(0)
