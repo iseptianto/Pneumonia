@@ -2,10 +2,14 @@ import os, io, base64, time
 import requests
 import streamlit as st
 from PIL import Image
-from config_utils import get_config, has_secrets_file
+from config_utils import get_config, get_bool, get_int, get_list, has_secrets_file
 
+# Configuration with universal getters
 FASTAPI_URL = get_config("FASTAPI_URL", "https://pneumonia-on4f.onrender.com/predict")
 FASTAPI_URL_BATCH = get_config("FASTAPI_URL_BATCH", "https://pneumonia-on4f.onrender.com/predict-batch")
+DEBUG = get_bool("DEBUG", False)
+PORT = get_int("PORT", 8501)
+ALLOWED_ORIGINS = get_list("ALLOWED_ORIGINS", ["*"])
 
 def wait_until_ready(base_url, timeout=120, interval=2):
     """Wait for FastAPI backend to be ready."""
