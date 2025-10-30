@@ -2,6 +2,11 @@ import os, io, base64, time
 import requests
 import streamlit as st
 from PIL import Image
+
+# ⬇️ WAJIB: st.set_page_config HARUS jadi perintah Streamlit pertama
+st.set_page_config(page_title="Pneumonia Prediction Diagnosis", page_icon="🩺", layout="wide")
+
+# Setelah set_page_config, baru import modul internal yang mungkin ada st.* di dalamnya
 from config_utils import get_config, get_bool, get_int, get_list, has_secrets_file
 
 # Configuration with universal getters
@@ -25,8 +30,6 @@ def wait_until_ready(base_url, timeout=120, interval=2):
             pass
         time.sleep(interval)
     return False
-
-st.set_page_config(page_title="Pneumonia Prediction Diagnosis", page_icon="🩺", layout="wide")
 
 # Initialize session state
 if "lang" not in st.session_state:
