@@ -43,7 +43,7 @@ if "prediction_result" not in st.session_state:
 
 # Simple i18n dictionary
 T = {
-    "EN": {
+    "EN [English]": {
         "upload_title": "Upload Medical Image",
         "analyze": "Analyze Image",
         "try_another": "Try Another Image",
@@ -58,7 +58,7 @@ T = {
         "request_failed": "Request failed",
         "invalid_image": "Please ensure the file is a valid medical image."
     },
-    "ID": {
+    "ID [Indonesia]": {
         "upload_title": "Unggah Citra Medis",
         "analyze": "Analisis Gambar",
         "try_another": "Coba Gambar Lain",
@@ -131,6 +131,15 @@ with upload_col:
     uploaded = st.file_uploader("", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
     st.write("---")
 
+    # NEW: preview placeholder (lives in upload_col)
+    preview_box = st.empty()
+    if uploaded is not None and not st.session_state.get("prediction_result"):
+        try:
+            _probe = Image.open(uploaded).convert("RGB")
+            preview_box.image(_probe, caption=t['preview'], use_column_width=True)
+        except Exception:
+            pass
+
     # Progress bar placeholder
     progress_bar = st.empty()
     progress_text = st.empty()
@@ -145,6 +154,7 @@ with upload_col:
         # Full reset of session state (removed zoom_ratio since zoom controls are gone)
         for key in ["processing_ms", "uploaded_file", "prediction_result"]:
             st.session_state.pop(key, None)
+        preview_box.empty()
         # Scroll to top
         st.markdown('<script>window.scrollTo(0, 0);</script>', unsafe_allow_html=True)
         st.rerun()
@@ -277,15 +287,7 @@ if go:
             uploaded.seek(0)
             img = Image.open(uploaded).convert("RGB")
 
-            # Show uploaded image in upload section with zoom functionality
-            with upload_col:
-                st.markdown("### 🖼️ Uploaded Image")
-
-                # Simple image preview
-                st.image(img, caption=t['preview'], use_column_width=True)
-
-                # Simple image preview without zoom controls
-                st.image(img, caption=t['preview'], use_column_width=True)
+            # DO NOT render st.image(...) again in this block
 
             # Initialize progress
             progress_bar.progress(0)
@@ -356,7 +358,8 @@ if go:
                 progress_bar.progress(100)
                 progress_text.text(t['complete'])
 
-                # Trigger UI update by rerunning
+                # NEW: clear the preview and rerun so the right column shows results
+                preview_box.empty()
                 st.rerun()
 
         except Exception as e:
