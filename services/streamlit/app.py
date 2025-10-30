@@ -2,9 +2,10 @@ import os, io, base64, time
 import requests
 import streamlit as st
 from PIL import Image
+from config_utils import get_config, has_secrets_file
 
-FASTAPI_URL = os.getenv("FASTAPI_URL", "https://pneumonia-on4f.onrender.com/predict")
-FASTAPI_URL_BATCH = os.getenv("FASTAPI_URL_BATCH", "https://pneumonia-on4f.onrender.com/predict-batch")
+FASTAPI_URL = get_config("FASTAPI_URL", "https://pneumonia-on4f.onrender.com/predict")
+FASTAPI_URL_BATCH = get_config("FASTAPI_URL_BATCH", "https://pneumonia-on4f.onrender.com/predict-batch")
 
 def wait_until_ready(base_url, timeout=120, interval=2):
     """Wait for FastAPI backend to be ready."""
@@ -83,10 +84,10 @@ with st.container():
                                label_visibility="collapsed", key="lang_select")
             st.session_state["lang"] = lang
         with r2:
-            docs_url = st.secrets.get("DOCS_URL", "https://docs.google.com/document/d/16kKwc9ChYLudeP3MeX18IPlnWezW-DXY9oWYZaVvy84/edit?usp=sharing")
+            docs_url = get_config("DOCS_URL", "https://docs.google.com/document/d/16kKwc9ChYLudeP3MeX18IPlnWezW-DXY9oWYZaVvy84/edit?usp=sharing")
             st.link_button("📄", url=docs_url, help="Open API Docs", use_container_width=True)
         with r3:
-            contact_url = st.secrets.get("CONTACT_URL", "mailto:hello@palawakampa.com?subject=Pneumonia%20App")
+            contact_url = get_config("CONTACT_URL", "mailto:hello@palawakampa.com?subject=Pneumonia%20App")
             st.link_button("✉️", url=contact_url, help="Contact", use_container_width=True)
 
 # Add header styling
@@ -101,6 +102,10 @@ st.markdown("""
 }
 </style>
 """, unsafe_allow_html=True)
+
+# Check for secrets file and show non-blocking warning
+if not has_secrets_file():
+    st.caption("⚙️ Running with environment variables (no `secrets.toml` found).")
 
 # Get current language texts
 t = T[st.session_state["lang"]]
