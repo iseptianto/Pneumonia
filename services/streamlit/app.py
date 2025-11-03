@@ -83,17 +83,25 @@ with st.container():
         st.caption("Upload an X-ray/CT image to predict pneumonia using our CNN model.")
     with col_right:
         # Right-aligned controls in one row
-        r1, r2, r3 = st.columns([2.5, 1, 1])
+        r1, r2, r3, r4, r5 = st.columns([2.5, 1, 1, 1, 1])
         with r1:
             lang = st.selectbox(" ", ["EN [English]", "ID [Indonesia]"], index=0 if st.session_state["lang"] == "EN [English]" else 1,
-                               label_visibility="collapsed", key="lang_select")
+                                label_visibility="collapsed", key="lang_select")
             st.session_state["lang"] = lang
         with r2:
             docs_url = get_config("DOCS_URL", "https://docs.google.com/document/d/16kKwc9ChYLudeP3MeX18IPlnWezW-DXY9oWYZaVvy84/edit?usp=sharing")
             st.link_button("📄", url=docs_url, help="Open API Docs", use_container_width=True)
         with r3:
-            contact_url = get_config("CONTACT_URL", "mailto:hello@palawakampa.com?subject=Pneumonia%20App")
+            contact_url = get_config("CONTACT_URL", "mailto:indraseptianto18@gmail.com?subject=Pneumonia%20App")
             st.link_button("✉️", url=contact_url, help="Contact", use_container_width=True)
+        with r4:
+            whatsapp_url = get_config("WHATSAPP_URL", "https://wa.me/6287781396076")
+            st.link_button("💬", url=whatsapp_url, help="Contact WhatsApp", use_container_width=True)
+        with r5:
+            if "dark_mode" not in st.session_state:
+                st.session_state["dark_mode"] = False
+            dark_mode = st.toggle("🌙", value=st.session_state["dark_mode"], key="dark_mode_toggle", help="Toggle Dark Mode")
+            st.session_state["dark_mode"] = dark_mode
 
 # Add header styling
 st.markdown("""
@@ -222,54 +230,55 @@ with result_col:
         st.success(f"{emoji} **{t['complete']}** Diagnosis: **{pred}** with **{prob*100:,.1f}%** confidence")
 
 # Add custom CSS for medical blue theme and drag-drop styling
-st.markdown("""
+st.markdown(f"""
 <style>
-    .main {
-        background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+    .main {{
+        background: {'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)' if st.session_state.get('dark_mode', False) else 'linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%)'};
         min-height: 100vh;
-    }
-    .stFileUploader {
-        background: #ffffff;
-        border: 2px dashed #2196f3;
+        color: {'#ffffff' if st.session_state.get('dark_mode', False) else '#000000'};
+    }}
+    .stFileUploader {{
+        background: {'#333333' if st.session_state.get('dark_mode', False) else '#ffffff'};
+        border: 2px dashed {'#555555' if st.session_state.get('dark_mode', False) else '#2196f3'};
         border-radius: 10px;
         padding: 20px;
         text-align: center;
         transition: all 0.3s ease;
-    }
-    .stFileUploader:hover {
-        border-color: #1976d2;
-        background: #f8f9fa;
-    }
-    .result-section {
+    }}
+    .stFileUploader:hover {{
+        border-color: {'#777777' if st.session_state.get('dark_mode', False) else '#1976d2'};
+        background: {'#444444' if st.session_state.get('dark_mode', False) else '#f8f9fa'};
+    }}
+    .result-section {{
         margin: 15px 0;
-    }
-    .diagnosis-normal {
+    }}
+    .diagnosis-normal {{
         color: #4caf50;
         font-weight: bold;
-    }
-    .diagnosis-pneumonia {
+    }}
+    .diagnosis-pneumonia {{
         color: #f44336;
         font-weight: bold;
-    }
-    .metric-value {
+    }}
+    .metric-value {{
         font-size: 1.2em;
         font-weight: bold;
-        color: #2196f3;
-    }
-    .progress-bar {
+        color: {'#64b5f6' if st.session_state.get('dark_mode', False) else '#2196f3'};
+    }}
+    .progress-bar {{
         width: 100%;
         height: 20px;
-        background: #e0e0e0;
+        background: {'#555555' if st.session_state.get('dark_mode', False) else '#e0e0e0'};
         border-radius: 10px;
         overflow: hidden;
         margin: 10px 0;
-    }
-    .progress-fill {
+    }}
+    .progress-fill {{
         height: 100%;
-        background: linear-gradient(90deg, #2196f3, #21cbf3);
+        background: linear-gradient(90deg, {'#64b5f6, #90caf9' if st.session_state.get('dark_mode', False) else '#2196f3, #21cbf3'});
         width: 0%;
         transition: width 0.3s ease;
-    }
+    }}
 </style>
 """, unsafe_allow_html=True)
 

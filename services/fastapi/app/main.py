@@ -15,7 +15,7 @@ except ImportError:
     print("TFLite not available - using mock model for testing")
 
 HF_REPO_ID = "palawakampa/Pneumonia"
-HF_FILENAME = "pneumonia_resnet50v2_fp16.tflite"
+HF_FILENAME = "modelbarukecil.tflite"
 ASSETS_FILENAME = "assets.json"
 
 INTERP = None
@@ -208,7 +208,7 @@ async def predict(file: UploadFile = File(...)):
         confidence = max(probs_list)  # Highest probability
 
         # Use fixed model accuracy from evaluation
-        dynamic_accuracy = 0.96
+        dynamic_accuracy = 0.9423
 
         return {
             "labels": LABELS,
