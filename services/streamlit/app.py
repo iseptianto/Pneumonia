@@ -229,6 +229,16 @@ with result_col:
         emoji = "🟢" if pred == "Normal" else "🔴"
         st.success(f"{emoji} **{t['complete']}** Diagnosis: **{pred}** with **{prob*100:,.1f}%** confidence")
 
+from logger_utils import send_log_async
+
+send_log_async(
+    model="pneumonia-v1",
+    prompt={"file": uploaded.name if uploaded else None},
+    response={"prediction": pred, "confidence": float(prob)},
+    elapsed_ms=st.session_state.get("processing_ms", 0),
+    meta={"source": "pneumonia-ui", "user": "anon"}
+)
+
 # Add custom CSS for medical blue theme and drag-drop styling
 st.markdown(f"""
 <style>
